@@ -14,4 +14,4 @@ run: image ##@run Run application on docker compose.
 
 .PHONY: unit
 unit: image ##@unit Run unit tests
-	docker build --progress=plain --tag $(IMG) --target=test-unit .
+	docker run --rm $(IMG) go test -race -timeout 60s -tags unit ./...

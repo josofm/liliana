@@ -7,4 +7,4 @@ RUN go mod download
 RUN go mod tidy
 COPY . /app
 
-ENTRYPOINT ["/app/liliana"]
+
