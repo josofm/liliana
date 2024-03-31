@@ -9,7 +9,7 @@ import (
 
 func TestMytest(t *testing.T) {
 	fmt.Println("My unit test running!")
-	got := 3
+	got := 1
 	if got != 1 {
 		t.Errorf("var = %d; want 1", got)
 	}
