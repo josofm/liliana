@@ -1,17 +1,19 @@
 package main
 
 import (
-	"net/http"
+	"log"
 
-	"github.com/gin-gonic/gin"
+	"github.com/josofm/liliana/config"
+	"github.com/josofm/liliana/internal/app"
 )
 
 func main() {
-	r := gin.Default()
-	r.GET("/ping", func(c *gin.Context) {
-		c.JSON(http.StatusOK, gin.H{
-			"message": "pong",
-		})
-	})
-	r.Run() // listen and serve on 0.0.0.0:8080 (for windows "localhost:8080")
+	// Configuration
+	cfg, err := config.NewConfig()
+	if err != nil {
+		log.Fatalf("Config error: %s", err)
+	}
+
+	// Run
+	app.Run(cfg)
 }
