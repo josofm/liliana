@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/josofm/liliana/config"
 	v1 "github.com/josofm/liliana/internal/controller/http/v1"
+	userRepo "github.com/josofm/liliana/internal/repository/user"
 	"github.com/josofm/liliana/pkg/httpserver"
 	"github.com/josofm/liliana/pkg/logger"
 )
@@ -17,7 +18,8 @@ func Run(cfg *config.Config) {
 	l := logger.New(cfg.Log.Level)
 
 	handler := gin.New()
-	v1.NewRouter(handler, l)
+	userRepo := userRepo.NewInMemoryRepo()
+	v1.NewRouter(handler, l, userRepo)
 	httpServer := httpserver.New(handler)
 
 	interrupt := make(chan os.Signal, 1)
