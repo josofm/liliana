@@ -1,6 +1,5 @@
 IMG = liliana
 VERSION ?= latest
-# wd=Get-Location
 wd=$(shell pwd)
 appvol=$(wd):/app
 
