@@ -18,7 +18,7 @@ run: image-dev ##@run Run application on docker compose.
 
 .PHONY: unit
 unit: image-dev ##@unit Run unit tests
-	docker run --rm $(IMG) go test -race -timeout 60s -tags unit ./...
+	docker run --rm liliana-dev go test -race -timeout 60s -tags unit ./...
 
 .PHONY: start-compose
 start-compose:
