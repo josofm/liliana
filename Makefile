@@ -26,4 +26,4 @@ start-compose:
 
 .PHONY: integration
 integration: image-dev start-compose ##@run integration tests
-	docker compose run --rm -v $(appvol)/app --entrypoint "go test -race -timeout 60s -tags integration ./..." liliana
+	docker compose run --rm -v $(appvol)/app --entrypoint "go test -race -timeout 60s -tags integration ./..." liliana-dev
