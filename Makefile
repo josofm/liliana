@@ -25,5 +25,7 @@ start-compose:
 	docker compose -f docker-compose.yaml up -d
 
 .PHONY: integration
-integration: image-dev start-compose ##@run integration tests
-	docker compose run --rm -v $(appvol)/app --entrypoint "go test -race -timeout 60s -tags integration ./..." liliana-dev
+integration:
+	docker compose -f docker-compose.yaml up -d
+	-docker compose exec liliana go test -race -timeout 60s -tags integration ./...
+	docker compose down
