@@ -1,25 +1,31 @@
 IMG = liliana
 VERSION ?= latest
-wd=Get-Location
-# wd=$(shell pwd) use me in linux
+wd=$(shell pwd)
 appvol=$(wd):/app
 
-.PHONY: image
-image: ##@image create dev image
-	docker build --progress=plain --target devimage . -t $(IMG)
+
+.PHONY: image-dev
+image-dev:
+	docker build --target devimage -t liliana-dev .
+
+.PHONY: image-prod
+image-prod:
+	docker build --target production -t liliana:latest .
 
 .PHONY: run
-run: image ##@run Run application on docker compose.
-	docker compose run --rm -v $(appvol) --service-ports  --entrypoint "go run /app/cmd/liliana.go" liliana
+run: image-dev ##@run Run application on docker compose.
+	docker compose up liliana
 
 .PHONY: unit
-unit: image ##@unit Run unit tests
-	docker run --rm $(IMG) go test -race -timeout 60s -tags unit ./...
+unit: image-dev ##@unit Run unit tests
+	docker run --rm liliana-dev go test -race -timeout 60s -tags unit ./...
 
 .PHONY: start-compose
 start-compose:
 	docker compose -f docker-compose.yaml up -d
 
 .PHONY: integration
-integration: image start-compose ##@run integration tests
-	docker compose run --rm -v $(appvol)/app --entrypoint "go test -race -timeout 60s -tags integration ./..." liliana
+integration:
+	docker compose -f docker-compose.yaml up -d
+	-docker compose exec liliana go test -race -timeout 60s -tags integration ./...
+	docker compose down
