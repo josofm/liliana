@@ -49,6 +49,17 @@ func (r *inMemoryRepo) GetByID(id int64) (*user.User, error) {
 	return u, nil
 }
 
+func (r *inMemoryRepo) Update(id int64, u *user.User) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	if _, exists := r.users[id]; !exists {
+		return errors.New("user not found")
+	}
+	u.ID = id
+	r.users[id] = u
+	return nil
+}
+
 func (r *inMemoryRepo) Delete(id int64) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

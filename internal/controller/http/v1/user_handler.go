@@ -10,19 +10,20 @@ import (
 	userService "github.com/josofm/liliana/internal/service/user"
 )
 
-type userHandler struct {
+type UserHandler struct {
 	service *userService.Service
 }
 
 func NewUserHandler(r *gin.Engine, repo userRepo.Repository) {
 	service := userService.NewService(repo)
-	h := &userHandler{service: service}
+	h := &UserHandler{service: service}
 
 	group := r.Group("/users")
 	{
 		group.POST("/", h.create)
 		group.GET("/", h.getAll)
 		group.GET("/:id", h.getByID)
+		group.PUT("/:id", h.update)
 		group.DELETE("/:id", h.delete)
 		group.GET("/test", func(c *gin.Context) {
 			c.JSON(200, gin.H{"message": "funcionando"})
@@ -31,7 +32,7 @@ func NewUserHandler(r *gin.Engine, repo userRepo.Repository) {
 	}
 }
 
-func (h *userHandler) create(c *gin.Context) {
+func (h *UserHandler) create(c *gin.Context) {
 	var input userEntity.User
 	if err := c.ShouldBindJSON(&input); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -45,12 +46,12 @@ func (h *userHandler) create(c *gin.Context) {
 	c.JSON(http.StatusCreated, input)
 }
 
-func (h *userHandler) getAll(c *gin.Context) {
+func (h *UserHandler) getAll(c *gin.Context) {
 	users, _ := h.service.GetAll()
 	c.JSON(http.StatusOK, users)
 }
 
-func (h *userHandler) getByID(c *gin.Context) {
+func (h *UserHandler) getByID(c *gin.Context) {
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	user, err := h.service.GetByID(id)
 	if err != nil {
@@ -60,7 +61,22 @@ func (h *userHandler) getByID(c *gin.Context) {
 	c.JSON(http.StatusOK, user)
 }
 
-func (h *userHandler) delete(c *gin.Context) {
+func (h *UserHandler) update(c *gin.Context) {
+	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	var input userEntity.User
+	if err := c.ShouldBindJSON(&input); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	err := h.service.Update(id, &input)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not update user"})
+		return
+	}
+	c.JSON(http.StatusOK, input)
+}
+
+func (h *UserHandler) delete(c *gin.Context) {
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	h.service.Delete(id)
 	c.Status(http.StatusNoContent)

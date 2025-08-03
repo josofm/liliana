@@ -1,6 +1,6 @@
 //go:build integration
 
-package v1_test
+package v1
 
 import (
 	"bytes"
@@ -10,105 +10,224 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	v1 "github.com/josofm/liliana/internal/controller/http/v1"
-	"github.com/josofm/liliana/internal/repository/user"
+	userEntity "github.com/josofm/liliana/internal/entity/user"
+	userRepo "github.com/josofm/liliana/internal/repository/user"
 	"github.com/stretchr/testify/assert"
 )
 
-func setupRouter() *gin.Engine {
+func setupUserHandler() *gin.Engine {
 	gin.SetMode(gin.TestMode)
-	r := gin.Default()
+	router := gin.New()
+	repo := userRepo.NewInMemoryRepo()
 
-	// Repositório em memória
-	repo := user.NewInMemoryRepo()
-	v1.NewUserHandler(r, repo)
+	// Use the real handler
+	NewUserHandler(router, repo)
 
-	return r
+	return router
 }
 
-func TestCreateUser(t *testing.T) {
-	router := setupRouter()
+func TestUserHandler_Create(t *testing.T) {
+	router := setupUserHandler()
 
-	input := map[string]string{
-		"name":     "Liliana",
-		"email":    "lili@mtg.com",
-		"password": "necromancer",
+	user := userEntity.User{
+		Name:     "Test User",
+		Email:    "test@example.com",
+		Password: "password123",
 	}
-	body, _ := json.Marshal(input)
 
-	req, _ := http.NewRequest(http.MethodPost, "/users/", bytes.NewBuffer(body))
+	body, err := json.Marshal(user)
+	checkErr(t, err)
+
+	req, err := http.NewRequest("POST", "/users/", bytes.NewBuffer(body))
+	checkErr(t, err)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp := httptest.NewRecorder()
-	router.ServeHTTP(resp, req)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusCreated, resp.Code)
-	assert.Contains(t, resp.Body.String(), `"name":"Liliana"`)
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	var response userEntity.User
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	checkErr(t, err)
+	assert.Equal(t, user.Name, response.Name)
+	assert.Equal(t, user.Email, response.Email)
+	assert.Equal(t, int64(1), response.ID)
 }
 
-func TestGetUserByID(t *testing.T) {
-	router := setupRouter()
+func TestUserHandler_Create_InvalidJSON(t *testing.T) {
+	router := setupUserHandler()
 
-	body := []byte(`{"name":"Liliana","email":"lili@mtg.com","password":"necromancer"}`)
-	req, _ := http.NewRequest(http.MethodPost, "/users/", bytes.NewBuffer(body))
-	req.Header.Set("Content-Type", "application/json")
-	resp := httptest.NewRecorder()
-	router.ServeHTTP(resp, req)
-
-	req2, _ := http.NewRequest(http.MethodGet, "/users/1", nil)
-	resp2 := httptest.NewRecorder()
-	router.ServeHTTP(resp2, req2)
-
-	assert.Equal(t, http.StatusOK, resp2.Code)
-	assert.Contains(t, resp2.Body.String(), `"email":"lili@mtg.com"`)
-}
-
-func TestCreateUserGetBadRequest(t *testing.T) {
-	router := setupRouter()
-
-	body := []byte(`{name: Liliana}`)
-
-	req, _ := http.NewRequest(http.MethodPost, "/users/", bytes.NewBuffer(body))
+	req, err := http.NewRequest("POST", "/users/", bytes.NewBuffer([]byte("invalid json")))
+	checkErr(t, err)
 	req.Header.Set("Content-Type", "application/json")
 
-	resp := httptest.NewRecorder()
-	router.ServeHTTP(resp, req)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusBadRequest, resp.Code)
-	assert.Contains(t, resp.Body.String(), "error")
+	assert.Equal(t, http.StatusBadRequest, w.Code)
 }
 
-func TestGetUserByIDNotFound(t *testing.T) {
-	router := setupRouter()
+func TestUserHandler_GetAll(t *testing.T) {
+	router := setupUserHandler()
 
-	req, _ := http.NewRequest(http.MethodGet, "/users/999", nil)
-	resp := httptest.NewRecorder()
+	// Create test users via HTTP
+	user1 := userEntity.User{Name: "User 1", Email: "user1@example.com", Password: "pass1"}
+	user2 := userEntity.User{Name: "User 2", Email: "user2@example.com", Password: "pass2"}
 
-	router.ServeHTTP(resp, req)
+	// Create first user
+	body1, err := json.Marshal(user1)
+	checkErr(t, err)
+	req1, err := http.NewRequest("POST", "/users/", bytes.NewBuffer(body1))
+	checkErr(t, err)
+	req1.Header.Set("Content-Type", "application/json")
+	w1 := httptest.NewRecorder()
+	router.ServeHTTP(w1, req1)
+	assert.Equal(t, http.StatusCreated, w1.Code)
 
-	assert.Equal(t, http.StatusNotFound, resp.Code)
-	assert.Contains(t, resp.Body.String(), "not found")
+	// Create second user
+	body2, err := json.Marshal(user2)
+	checkErr(t, err)
+	req2, err := http.NewRequest("POST", "/users/", bytes.NewBuffer(body2))
+	checkErr(t, err)
+	req2.Header.Set("Content-Type", "application/json")
+	w2 := httptest.NewRecorder()
+	router.ServeHTTP(w2, req2)
+	assert.Equal(t, http.StatusCreated, w2.Code)
+
+	// Get all users
+	req, err := http.NewRequest("GET", "/users/", nil)
+	checkErr(t, err)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response []userEntity.User
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	checkErr(t, err)
+	assert.Len(t, response, 2)
 }
 
-func TestDeleteUser(t *testing.T) {
-	router := setupRouter()
+func TestUserHandler_GetByID(t *testing.T) {
+	router := setupUserHandler()
 
-	body := []byte(`{"name":"Liliana","email":"lili@mtg.com","password":"necromancer"}`)
-	reqCreate, _ := http.NewRequest(http.MethodPost, "/users/", bytes.NewBuffer(body))
-	reqCreate.Header.Set("Content-Type", "application/json")
-	respCreate := httptest.NewRecorder()
-	router.ServeHTTP(respCreate, reqCreate)
-	assert.Equal(t, http.StatusCreated, respCreate.Code)
+	// Create test user via HTTP
+	user := userEntity.User{Name: "Test User", Email: "test@example.com", Password: "password"}
+	body, err := json.Marshal(user)
+	checkErr(t, err)
+	req1, err := http.NewRequest("POST", "/users/", bytes.NewBuffer(body))
+	checkErr(t, err)
+	req1.Header.Set("Content-Type", "application/json")
+	w1 := httptest.NewRecorder()
+	router.ServeHTTP(w1, req1)
+	assert.Equal(t, http.StatusCreated, w1.Code)
 
-	reqDelete, _ := http.NewRequest(http.MethodDelete, "/users/1", nil)
-	respDelete := httptest.NewRecorder()
-	router.ServeHTTP(respDelete, reqDelete)
+	// Get user by ID
+	req, err := http.NewRequest("GET", "/users/1", nil)
+	checkErr(t, err)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
 
-	assert.Equal(t, http.StatusNoContent, respDelete.Code)
+	assert.Equal(t, http.StatusOK, w.Code)
 
-	reqGet, _ := http.NewRequest(http.MethodGet, "/users/1", nil)
-	respGet := httptest.NewRecorder()
-	router.ServeHTTP(respGet, reqGet)
+	var response userEntity.User
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	checkErr(t, err)
+	assert.Equal(t, user.Name, response.Name)
+	assert.Equal(t, user.Email, response.Email)
+}
 
-	assert.Equal(t, http.StatusNotFound, respGet.Code)
+func TestUserHandler_GetByID_NotFound(t *testing.T) {
+	router := setupUserHandler()
+
+	req, err := http.NewRequest("GET", "/users/999", nil)
+	checkErr(t, err)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestUserHandler_Update(t *testing.T) {
+	router := setupUserHandler()
+
+	// Create user via HTTP
+	user := userEntity.User{Name: "Original Name", Email: "original@example.com", Password: "pass"}
+	body1, err := json.Marshal(user)
+	checkErr(t, err)
+	req1, err := http.NewRequest("POST", "/users/", bytes.NewBuffer(body1))
+	checkErr(t, err)
+	req1.Header.Set("Content-Type", "application/json")
+	w1 := httptest.NewRecorder()
+	router.ServeHTTP(w1, req1)
+	assert.Equal(t, http.StatusCreated, w1.Code)
+
+	// Update user
+	updatedUser := userEntity.User{Name: "Updated Name", Email: "updated@example.com", Password: "newpass"}
+	body, err := json.Marshal(updatedUser)
+	checkErr(t, err)
+
+	req, err := http.NewRequest("PUT", "/users/1", bytes.NewBuffer(body))
+	checkErr(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusOK, w.Code)
+
+	var response userEntity.User
+	err = json.Unmarshal(w.Body.Bytes(), &response)
+	checkErr(t, err)
+	assert.Equal(t, "Updated Name", response.Name)
+	assert.Equal(t, "updated@example.com", response.Email)
+}
+
+func TestUserHandler_Update_InvalidJSON(t *testing.T) {
+	router := setupUserHandler()
+
+	req, err := http.NewRequest("PUT", "/users/1", bytes.NewBuffer([]byte("invalid json")))
+	checkErr(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusBadRequest, w.Code)
+}
+
+func TestUserHandler_Delete(t *testing.T) {
+	router := setupUserHandler()
+
+	// Create user via HTTP
+	user := userEntity.User{Name: "Test User", Email: "test@example.com", Password: "password"}
+	body, err := json.Marshal(user)
+	checkErr(t, err)
+	req1, err := http.NewRequest("POST", "/users/", bytes.NewBuffer(body))
+	checkErr(t, err)
+	req1.Header.Set("Content-Type", "application/json")
+	w1 := httptest.NewRecorder()
+	router.ServeHTTP(w1, req1)
+	assert.Equal(t, http.StatusCreated, w1.Code)
+
+	// Verify user exists via HTTP
+	req2, err := http.NewRequest("GET", "/users/1", nil)
+	checkErr(t, err)
+	w2 := httptest.NewRecorder()
+	router.ServeHTTP(w2, req2)
+	assert.Equal(t, http.StatusOK, w2.Code)
+
+	// Delete user
+	req, err := http.NewRequest("DELETE", "/users/1", nil)
+	checkErr(t, err)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusNoContent, w.Code)
+
+	// Verify user is deleted via HTTP
+	req3, err := http.NewRequest("GET", "/users/1", nil)
+	checkErr(t, err)
+	w3 := httptest.NewRecorder()
+	router.ServeHTTP(w3, req3)
+	assert.Equal(t, http.StatusNotFound, w3.Code)
 }
