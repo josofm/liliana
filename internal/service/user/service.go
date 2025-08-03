@@ -25,6 +25,10 @@ func (s *Service) GetByID(id int64) (*user.User, error) {
 	return s.repo.GetByID(id)
 }
 
+func (s *Service) Update(id int64, u *user.User) error {
+	return s.repo.Update(id, u)
+}
+
 func (s *Service) Delete(id int64) error {
 	return s.repo.Delete(id)
 }

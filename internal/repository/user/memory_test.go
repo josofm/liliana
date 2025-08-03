@@ -1,110 +1,107 @@
-//go:build unit
-
 package user
 
 import (
 	"testing"
 
 	userEntity "github.com/josofm/liliana/internal/entity/user"
-	userRepo "github.com/josofm/liliana/internal/repository/user"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestNewService(t *testing.T) {
-	repo := userRepo.NewInMemoryRepo()
-	service := NewService(repo)
-	assert.NotNil(t, service)
+func TestNewInMemoryRepo(t *testing.T) {
+	repo := NewInMemoryRepo()
+	assert.NotNil(t, repo)
 }
 
-func TestService_Create(t *testing.T) {
-	repo := userRepo.NewInMemoryRepo()
-	service := NewService(repo)
-
+func TestInMemoryRepo_Create(t *testing.T) {
+	repo := NewInMemoryRepo()
+	
 	user := &userEntity.User{
 		Name:     "Test User",
 		Email:    "test@example.com",
 		Password: "password123",
 	}
-
-	err := service.Create(user)
+	
+	err := repo.Create(user)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), user.ID)
 }
 
-func TestService_GetAll(t *testing.T) {
-	repo := userRepo.NewInMemoryRepo()
-	service := NewService(repo)
-
+func TestInMemoryRepo_GetAll(t *testing.T) {
+	repo := NewInMemoryRepo()
+	
 	// Create test users
 	user1 := &userEntity.User{Name: "User 1", Email: "user1@example.com", Password: "pass1"}
 	user2 := &userEntity.User{Name: "User 2", Email: "user2@example.com", Password: "pass2"}
-
-	service.Create(user1)
-	service.Create(user2)
-
-	users, err := service.GetAll()
+	
+	repo.Create(user1)
+	repo.Create(user2)
+	
+	users, err := repo.GetAll()
 	assert.NoError(t, err)
 	assert.Len(t, users, 2)
 }
 
-func TestService_GetByID(t *testing.T) {
-	repo := userRepo.NewInMemoryRepo()
-	service := NewService(repo)
-
+func TestInMemoryRepo_GetByID(t *testing.T) {
+	repo := NewInMemoryRepo()
+	
 	user := &userEntity.User{Name: "Test User", Email: "test@example.com", Password: "password"}
-	service.Create(user)
-
+	repo.Create(user)
+	
 	// Test successful retrieval
-	found, err := service.GetByID(1)
+	found, err := repo.GetByID(1)
 	assert.NoError(t, err)
 	assert.Equal(t, user.Name, found.Name)
 	assert.Equal(t, user.Email, found.Email)
-
+	
 	// Test not found
-	notFound, err := service.GetByID(999)
+	notFound, err := repo.GetByID(999)
 	assert.Error(t, err)
 	assert.Nil(t, notFound)
+	assert.Equal(t, "user not found", err.Error())
 }
 
-func TestService_Update(t *testing.T) {
-	repo := userRepo.NewInMemoryRepo()
-	service := NewService(repo)
-
+func TestInMemoryRepo_Update(t *testing.T) {
+	repo := NewInMemoryRepo()
+	
 	// Create user
 	user := &userEntity.User{Name: "Original Name", Email: "original@example.com", Password: "pass"}
-	service.Create(user)
-
+	repo.Create(user)
+	
 	// Update user
 	updatedUser := &userEntity.User{Name: "Updated Name", Email: "updated@example.com", Password: "newpass"}
-	err := service.Update(1, updatedUser)
+	err := repo.Update(1, updatedUser)
 	assert.NoError(t, err)
-
+	
 	// Verify update
-	found, err := service.GetByID(1)
+	found, err := repo.GetByID(1)
 	assert.NoError(t, err)
 	assert.Equal(t, "Updated Name", found.Name)
 	assert.Equal(t, "updated@example.com", found.Email)
+	
+	// Test update non-existent user
+	err = repo.Update(999, updatedUser)
+	assert.Error(t, err)
+	assert.Equal(t, "user not found", err.Error())
 }
 
-func TestService_Delete(t *testing.T) {
-	repo := userRepo.NewInMemoryRepo()
-	service := NewService(repo)
-
+func TestInMemoryRepo_Delete(t *testing.T) {
+	repo := NewInMemoryRepo()
+	
 	// Create user
 	user := &userEntity.User{Name: "Test User", Email: "test@example.com", Password: "password"}
-	service.Create(user)
-
+	repo.Create(user)
+	
 	// Verify user exists
-	found, err := service.GetByID(1)
+	found, err := repo.GetByID(1)
 	assert.NoError(t, err)
 	assert.NotNil(t, found)
-
+	
 	// Delete user
-	err = service.Delete(1)
+	err = repo.Delete(1)
 	assert.NoError(t, err)
-
+	
 	// Verify user is deleted
-	found, err = service.GetByID(1)
+	found, err = repo.GetByID(1)
 	assert.Error(t, err)
 	assert.Nil(t, found)
-}
+} 
