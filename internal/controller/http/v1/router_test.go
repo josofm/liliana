@@ -1,3 +1,5 @@
+//go:build integration
+
 package v1
 
 import (
@@ -30,7 +32,8 @@ func setupTestRouter() *gin.Engine {
 func TestRouter_HealthCheck(t *testing.T) {
 	router := setupTestRouter()
 
-	req, _ := http.NewRequest("GET", "/healthz", nil)
+	req, err := http.NewRequest("GET", "/healthz", nil)
+	checkErr(t, err)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -47,8 +50,10 @@ func TestRouter_UserEndpoints(t *testing.T) {
 		"password": "password123",
 	}
 
-	body, _ := json.Marshal(userData)
-	req, _ := http.NewRequest("POST", "/users/", bytes.NewBuffer(body))
+	body, err := json.Marshal(userData)
+	checkErr(t, err)
+	req, err := http.NewRequest("POST", "/users/", bytes.NewBuffer(body))
+	checkErr(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -56,14 +61,16 @@ func TestRouter_UserEndpoints(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, w.Code)
 
 	// Test get all users
-	req, _ = http.NewRequest("GET", "/users/", nil)
+	req, err = http.NewRequest("GET", "/users/", nil)
+	checkErr(t, err)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	// Test get user by ID
-	req, _ = http.NewRequest("GET", "/users/1", nil)
+	req, err = http.NewRequest("GET", "/users/1", nil)
+	checkErr(t, err)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -76,8 +83,10 @@ func TestRouter_UserEndpoints(t *testing.T) {
 		"password": "newpassword",
 	}
 
-	body, _ = json.Marshal(updateData)
-	req, _ = http.NewRequest("PUT", "/users/1", bytes.NewBuffer(body))
+	body, err = json.Marshal(updateData)
+	checkErr(t, err)
+	req, err = http.NewRequest("PUT", "/users/1", bytes.NewBuffer(body))
+	checkErr(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -85,7 +94,8 @@ func TestRouter_UserEndpoints(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	// Test delete user
-	req, _ = http.NewRequest("DELETE", "/users/1", nil)
+	req, err = http.NewRequest("DELETE", "/users/1", nil)
+	checkErr(t, err)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -104,8 +114,10 @@ func TestRouter_DeckEndpoints(t *testing.T) {
 		"source_link": "https://archidekt.com/decks/123456",
 	}
 
-	body, _ := json.Marshal(deckData)
-	req, _ := http.NewRequest("POST", "/decks/", bytes.NewBuffer(body))
+	body, err := json.Marshal(deckData)
+	checkErr(t, err)
+	req, err := http.NewRequest("POST", "/decks/", bytes.NewBuffer(body))
+	checkErr(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -113,14 +125,16 @@ func TestRouter_DeckEndpoints(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, w.Code)
 
 	// Test get all decks
-	req, _ = http.NewRequest("GET", "/decks/", nil)
+	req, err = http.NewRequest("GET", "/decks/", nil)
+	checkErr(t, err)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	// Test get deck by ID
-	req, _ = http.NewRequest("GET", "/decks/1", nil)
+	req, err = http.NewRequest("GET", "/decks/1", nil)
+	checkErr(t, err)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -135,8 +149,10 @@ func TestRouter_DeckEndpoints(t *testing.T) {
 		"source_link": "https://archidekt.com/decks/654321",
 	}
 
-	body, _ = json.Marshal(updateData)
-	req, _ = http.NewRequest("PUT", "/decks/1", bytes.NewBuffer(body))
+	body, err = json.Marshal(updateData)
+	checkErr(t, err)
+	req, err = http.NewRequest("PUT", "/decks/1", bytes.NewBuffer(body))
+	checkErr(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -144,7 +160,8 @@ func TestRouter_DeckEndpoints(t *testing.T) {
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	// Test delete deck
-	req, _ = http.NewRequest("DELETE", "/decks/1", nil)
+	req, err = http.NewRequest("DELETE", "/decks/1", nil)
+	checkErr(t, err)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -154,7 +171,8 @@ func TestRouter_DeckEndpoints(t *testing.T) {
 func TestRouter_NotFound(t *testing.T) {
 	router := setupTestRouter()
 
-	req, _ := http.NewRequest("GET", "/nonexistent", nil)
+	req, err := http.NewRequest("GET", "/nonexistent", nil)
+	checkErr(t, err)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
