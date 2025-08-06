@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	deckEntity "github.com/josofm/liliana/internal/entity/deck"
 	deckRepo "github.com/josofm/liliana/internal/repository/deck"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,26 +20,23 @@ func setupDeckHandler() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	repo := deckRepo.NewInMemoryRepo()
-
-	// Use the real handler
 	NewDeckHandler(router, repo)
-
 	return router
 }
 
 func TestDeckHandler_Create(t *testing.T) {
 	router := setupDeckHandler()
 
-	deck := deckEntity.Deck{
-		Name:       "Test Deck",
-		Color:      "WUBRG",
-		Commander:  "Atraxa, Praetors' Voice",
-		OwnerID:    1,
-		SourceLink: "https://archidekt.com/decks/123456",
+	deckRequest := DeckRequest{
+		Name:      "Test Deck",
+		Color:     "WUBRG",
+		Commander: "Atraxa, Praetors' Voice",
+		OwnerID:   1,
 	}
 
-	body, err := json.Marshal(deck)
+	body, err := json.Marshal(deckRequest)
 	checkErr(t, err)
+
 	req, err := http.NewRequest("POST", "/decks/", bytes.NewBuffer(body))
 	checkErr(t, err)
 	req.Header.Set("Content-Type", "application/json")
@@ -51,9 +49,10 @@ func TestDeckHandler_Create(t *testing.T) {
 	var response deckEntity.Deck
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	checkErr(t, err)
-	assert.Equal(t, deck.Name, response.Name)
-	assert.Equal(t, deck.Color, response.Color)
-	assert.Equal(t, deck.Commander, response.Commander)
+	assert.Equal(t, deckRequest.Name, response.Name)
+	assert.Equal(t, deckRequest.Color, response.Color)
+	assert.Equal(t, deckRequest.Commander, response.Commander)
+	assert.Equal(t, deckRequest.OwnerID, response.OwnerID)
 	assert.Equal(t, int64(1), response.ID)
 }
 
@@ -74,11 +73,11 @@ func TestDeckHandler_GetAll(t *testing.T) {
 	router := setupDeckHandler()
 
 	// Create test decks via HTTP
-	deck1 := deckEntity.Deck{Name: "Deck 1", Color: "WU", Commander: "Azorius", OwnerID: 1}
-	deck2 := deckEntity.Deck{Name: "Deck 2", Color: "BR", Commander: "Rakdos", OwnerID: 2}
+	deckRequest1 := DeckRequest{Name: "Deck 1", Color: "W", Commander: "Sram", OwnerID: 1}
+	deckRequest2 := DeckRequest{Name: "Deck 2", Color: "U", Commander: "Baral", OwnerID: 1}
 
 	// Create first deck
-	body1, err := json.Marshal(deck1)
+	body1, err := json.Marshal(deckRequest1)
 	checkErr(t, err)
 	req1, err := http.NewRequest("POST", "/decks/", bytes.NewBuffer(body1))
 	checkErr(t, err)
@@ -88,7 +87,7 @@ func TestDeckHandler_GetAll(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, w1.Code)
 
 	// Create second deck
-	body2, err := json.Marshal(deck2)
+	body2, err := json.Marshal(deckRequest2)
 	checkErr(t, err)
 	req2, err := http.NewRequest("POST", "/decks/", bytes.NewBuffer(body2))
 	checkErr(t, err)
@@ -115,8 +114,8 @@ func TestDeckHandler_GetByID(t *testing.T) {
 	router := setupDeckHandler()
 
 	// Create test deck via HTTP
-	deck := deckEntity.Deck{Name: "Test Deck", Color: "WUBRG", Commander: "Atraxa", OwnerID: 1}
-	body, err := json.Marshal(deck)
+	deckRequest := DeckRequest{Name: "Test Deck", Color: "WUBRG", Commander: "Atraxa", OwnerID: 1}
+	body, err := json.Marshal(deckRequest)
 	checkErr(t, err)
 	req1, err := http.NewRequest("POST", "/decks/", bytes.NewBuffer(body))
 	checkErr(t, err)
@@ -136,9 +135,9 @@ func TestDeckHandler_GetByID(t *testing.T) {
 	var response deckEntity.Deck
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	checkErr(t, err)
-	assert.Equal(t, deck.Name, response.Name)
-	assert.Equal(t, deck.Color, response.Color)
-	assert.Equal(t, deck.Commander, response.Commander)
+	assert.Equal(t, deckRequest.Name, response.Name)
+	assert.Equal(t, deckRequest.Color, response.Color)
+	assert.Equal(t, deckRequest.Commander, response.Commander)
 }
 
 func TestDeckHandler_GetByID_NotFound(t *testing.T) {
@@ -156,8 +155,8 @@ func TestDeckHandler_Update(t *testing.T) {
 	router := setupDeckHandler()
 
 	// Create deck via HTTP
-	deck := deckEntity.Deck{Name: "Original Deck", Color: "WU", Commander: "Azorius", OwnerID: 1}
-	body1, err := json.Marshal(deck)
+	deckRequest := DeckRequest{Name: "Original Deck", Color: "W", Commander: "Sram", OwnerID: 1}
+	body1, err := json.Marshal(deckRequest)
 	checkErr(t, err)
 	req1, err := http.NewRequest("POST", "/decks/", bytes.NewBuffer(body1))
 	checkErr(t, err)
@@ -167,8 +166,8 @@ func TestDeckHandler_Update(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, w1.Code)
 
 	// Update deck
-	updatedDeck := deckEntity.Deck{Name: "Updated Deck", Color: "BR", Commander: "Rakdos", OwnerID: 2}
-	body, err := json.Marshal(updatedDeck)
+	updatedDeckRequest := DeckRequest{Name: "Updated Deck", Color: "U", Commander: "Baral", OwnerID: 1}
+	body, err := json.Marshal(updatedDeckRequest)
 	checkErr(t, err)
 
 	req, err := http.NewRequest("PUT", "/decks/1", bytes.NewBuffer(body))
@@ -183,8 +182,8 @@ func TestDeckHandler_Update(t *testing.T) {
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	checkErr(t, err)
 	assert.Equal(t, "Updated Deck", response.Name)
-	assert.Equal(t, "BR", response.Color)
-	assert.Equal(t, "Rakdos", response.Commander)
+	assert.Equal(t, "U", response.Color)
+	assert.Equal(t, "Baral", response.Commander)
 }
 
 func TestDeckHandler_Update_InvalidJSON(t *testing.T) {
@@ -203,8 +202,8 @@ func TestDeckHandler_Delete(t *testing.T) {
 	router := setupDeckHandler()
 
 	// Create deck via HTTP
-	deck := deckEntity.Deck{Name: "Test Deck", Color: "WUBRG", Commander: "Atraxa", OwnerID: 1}
-	body, err := json.Marshal(deck)
+	deckRequest := DeckRequest{Name: "Test Deck", Color: "WUBRG", Commander: "Atraxa", OwnerID: 1}
+	body, err := json.Marshal(deckRequest)
 	checkErr(t, err)
 	req1, err := http.NewRequest("POST", "/decks/", bytes.NewBuffer(body))
 	checkErr(t, err)

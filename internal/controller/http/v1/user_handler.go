@@ -8,15 +8,25 @@ import (
 	userEntity "github.com/josofm/liliana/internal/entity/user"
 	userRepo "github.com/josofm/liliana/internal/repository/user"
 	userService "github.com/josofm/liliana/internal/service/user"
+	"github.com/josofm/liliana/internal/validator"
 )
 
+// UserRequest represents the incoming user data for validation
+type UserRequest struct {
+	Name     string `json:"name" validate:"required,min=2,max=50"`
+	Password string `json:"password" validate:"required,min=6"`
+	Email    string `json:"email" validate:"required,email"`
+}
+
 type UserHandler struct {
-	service *userService.Service
+	service   *userService.Service
+	validator *validator.Validator
 }
 
 func NewUserHandler(r *gin.Engine, repo userRepo.Repository) {
 	service := userService.NewService(repo)
-	h := &UserHandler{service: service}
+	validator := validator.New()
+	h := &UserHandler{service: service, validator: validator}
 
 	group := r.Group("/users")
 	{
@@ -33,17 +43,31 @@ func NewUserHandler(r *gin.Engine, repo userRepo.Repository) {
 }
 
 func (h *UserHandler) create(c *gin.Context) {
-	var input userEntity.User
-	if err := c.ShouldBindJSON(&input); err != nil {
+	var request UserRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	err := h.service.Create(&input)
+
+	// Validate request
+	if validationErrors := h.validator.ValidateAndGetErrors(&request); validationErrors != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"errors": validationErrors})
+		return
+	}
+
+	// Convert to entity
+	user := userEntity.User{
+		Name:     request.Name,
+		Password: request.Password,
+		Email:    request.Email,
+	}
+
+	err := h.service.Create(&user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create user"})
 		return
 	}
-	c.JSON(http.StatusCreated, input)
+	c.JSON(http.StatusCreated, user)
 }
 
 func (h *UserHandler) getAll(c *gin.Context) {
@@ -63,17 +87,32 @@ func (h *UserHandler) getByID(c *gin.Context) {
 
 func (h *UserHandler) update(c *gin.Context) {
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
-	var input userEntity.User
-	if err := c.ShouldBindJSON(&input); err != nil {
+
+	var request UserRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-	err := h.service.Update(id, &input)
+
+	// Validate request
+	if validationErrors := h.validator.ValidateAndGetErrors(&request); validationErrors != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"errors": validationErrors})
+		return
+	}
+
+	// Convert to entity
+	user := userEntity.User{
+		Name:     request.Name,
+		Password: request.Password,
+		Email:    request.Email,
+	}
+
+	err := h.service.Update(id, &user)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not update user"})
 		return
 	}
-	c.JSON(http.StatusOK, input)
+	c.JSON(http.StatusOK, user)
 }
 
 func (h *UserHandler) delete(c *gin.Context) {

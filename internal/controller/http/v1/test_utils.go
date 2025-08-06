@@ -9,4 +9,4 @@ func checkErr(t *testing.T, err error) {
 	if err != nil {
 		t.Fatalf("unexpected error: %v", err)
 	}
-} 
+}
