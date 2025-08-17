@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	userEntity "github.com/josofm/liliana/internal/entity/user"
 	userRepo "github.com/josofm/liliana/internal/repository/user"
+
 	"github.com/stretchr/testify/assert"
 )
 
@@ -19,23 +20,20 @@ func setupUserHandler() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	repo := userRepo.NewInMemoryRepo()
-
-	// Use the real handler
 	NewUserHandler(router, repo)
-
 	return router
 }
 
 func TestUserHandler_Create(t *testing.T) {
 	router := setupUserHandler()
 
-	user := userEntity.User{
+	userRequest := UserRequest{
 		Name:     "Test User",
 		Email:    "test@example.com",
 		Password: "password123",
 	}
 
-	body, err := json.Marshal(user)
+	body, err := json.Marshal(userRequest)
 	checkErr(t, err)
 
 	req, err := http.NewRequest("POST", "/users/", bytes.NewBuffer(body))
@@ -50,8 +48,8 @@ func TestUserHandler_Create(t *testing.T) {
 	var response userEntity.User
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	checkErr(t, err)
-	assert.Equal(t, user.Name, response.Name)
-	assert.Equal(t, user.Email, response.Email)
+	assert.Equal(t, userRequest.Name, response.Name)
+	assert.Equal(t, userRequest.Email, response.Email)
 	assert.Equal(t, int64(1), response.ID)
 }
 
@@ -72,11 +70,11 @@ func TestUserHandler_GetAll(t *testing.T) {
 	router := setupUserHandler()
 
 	// Create test users via HTTP
-	user1 := userEntity.User{Name: "User 1", Email: "user1@example.com", Password: "pass1"}
-	user2 := userEntity.User{Name: "User 2", Email: "user2@example.com", Password: "pass2"}
+	userRequest1 := UserRequest{Name: "User 1", Email: "user1@example.com", Password: "pass123"}
+	userRequest2 := UserRequest{Name: "User 2", Email: "user2@example.com", Password: "pass456"}
 
 	// Create first user
-	body1, err := json.Marshal(user1)
+	body1, err := json.Marshal(userRequest1)
 	checkErr(t, err)
 	req1, err := http.NewRequest("POST", "/users/", bytes.NewBuffer(body1))
 	checkErr(t, err)
@@ -86,7 +84,7 @@ func TestUserHandler_GetAll(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, w1.Code)
 
 	// Create second user
-	body2, err := json.Marshal(user2)
+	body2, err := json.Marshal(userRequest2)
 	checkErr(t, err)
 	req2, err := http.NewRequest("POST", "/users/", bytes.NewBuffer(body2))
 	checkErr(t, err)
@@ -113,8 +111,8 @@ func TestUserHandler_GetByID(t *testing.T) {
 	router := setupUserHandler()
 
 	// Create test user via HTTP
-	user := userEntity.User{Name: "Test User", Email: "test@example.com", Password: "password"}
-	body, err := json.Marshal(user)
+	userRequest := UserRequest{Name: "Test User", Email: "test@example.com", Password: "password123"}
+	body, err := json.Marshal(userRequest)
 	checkErr(t, err)
 	req1, err := http.NewRequest("POST", "/users/", bytes.NewBuffer(body))
 	checkErr(t, err)
@@ -134,8 +132,8 @@ func TestUserHandler_GetByID(t *testing.T) {
 	var response userEntity.User
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	checkErr(t, err)
-	assert.Equal(t, user.Name, response.Name)
-	assert.Equal(t, user.Email, response.Email)
+	assert.Equal(t, userRequest.Name, response.Name)
+	assert.Equal(t, userRequest.Email, response.Email)
 }
 
 func TestUserHandler_GetByID_NotFound(t *testing.T) {
@@ -153,8 +151,8 @@ func TestUserHandler_Update(t *testing.T) {
 	router := setupUserHandler()
 
 	// Create user via HTTP
-	user := userEntity.User{Name: "Original Name", Email: "original@example.com", Password: "pass"}
-	body1, err := json.Marshal(user)
+	userRequest := UserRequest{Name: "Original Name", Email: "original@example.com", Password: "password123"}
+	body1, err := json.Marshal(userRequest)
 	checkErr(t, err)
 	req1, err := http.NewRequest("POST", "/users/", bytes.NewBuffer(body1))
 	checkErr(t, err)
@@ -164,8 +162,8 @@ func TestUserHandler_Update(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, w1.Code)
 
 	// Update user
-	updatedUser := userEntity.User{Name: "Updated Name", Email: "updated@example.com", Password: "newpass"}
-	body, err := json.Marshal(updatedUser)
+	updatedUserRequest := UserRequest{Name: "Updated Name", Email: "updated@example.com", Password: "newpass"}
+	body, err := json.Marshal(updatedUserRequest)
 	checkErr(t, err)
 
 	req, err := http.NewRequest("PUT", "/users/1", bytes.NewBuffer(body))
@@ -199,8 +197,8 @@ func TestUserHandler_Delete(t *testing.T) {
 	router := setupUserHandler()
 
 	// Create user via HTTP
-	user := userEntity.User{Name: "Test User", Email: "test@example.com", Password: "password"}
-	body, err := json.Marshal(user)
+	userRequest := UserRequest{Name: "Test User", Email: "test@example.com", Password: "password123"}
+	body, err := json.Marshal(userRequest)
 	checkErr(t, err)
 	req1, err := http.NewRequest("POST", "/users/", bytes.NewBuffer(body))
 	checkErr(t, err)

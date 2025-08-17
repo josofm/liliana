@@ -1,6 +1,6 @@
 IMG = liliana
 VERSION ?= latest
-wd=$(shell pwd)
+wd=$(shell cd)
 appvol=$(wd):/app
 
 
@@ -29,3 +29,5 @@ integration:
 	docker compose -f docker-compose.yaml up -d
 	-docker compose exec liliana go test -race -timeout 60s -tags integration ./...
 	docker compose down
+
+

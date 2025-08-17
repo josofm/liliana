@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	deckRepo "github.com/josofm/liliana/internal/repository/deck"
 	userRepo "github.com/josofm/liliana/internal/repository/user"
+
 	"github.com/josofm/liliana/pkg/logger"
 	"github.com/stretchr/testify/assert"
 )
