@@ -49,6 +49,17 @@ func (r *inMemoryRepo) GetByID(id int64) (*user.User, error) {
 	return u, nil
 }
 
+func (r *inMemoryRepo) GetByEmail(email string) (*user.User, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	for _, u := range r.users {
+		if u.Email == email {
+			return u, nil
+		}
+	}
+	return nil, errors.New("user not found")
+}
+
 func (r *inMemoryRepo) Update(id int64, u *user.User) error {
 	r.mu.Lock()
 	defer r.mu.Unlock()

@@ -8,16 +8,20 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/josofm/liliana/config"
+	authEntity "github.com/josofm/liliana/internal/entity/auth"
+	userEntity "github.com/josofm/liliana/internal/entity/user"
 	deckRepo "github.com/josofm/liliana/internal/repository/deck"
 	userRepo "github.com/josofm/liliana/internal/repository/user"
-
+	"github.com/josofm/liliana/internal/service/auth"
 	"github.com/josofm/liliana/pkg/logger"
 	"github.com/stretchr/testify/assert"
 )
 
-func setupTestRouter() *gin.Engine {
+func setupTestRouterV1() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 
@@ -25,13 +29,50 @@ func setupTestRouter() *gin.Engine {
 	deckRepo := deckRepo.NewInMemoryRepo()
 	l := logger.New("debug")
 
-	NewRouter(router, l, userRepo, deckRepo)
+	// Criar config de teste
+	cfg := &config.Config{
+		JWT: config.JWTConfig{
+			SecretKey:     "test-secret",
+			AccessExpiry:  15 * time.Minute,
+			RefreshExpiry: 24 * time.Hour,
+		},
+	}
+
+	NewRouter(router, l, userRepo, deckRepo, cfg)
+
+	// Criar usuário de teste para autenticação
+	testUser := &userEntity.User{
+		Name:     "Test User",
+		Email:    "test@example.com",
+		Password: "password123",
+	}
+
+	// Criar usuário usando o auth service para garantir que a senha seja hasheada
+	jwtService := auth.NewJWTService(auth.JWTConfig{
+		SecretKey:     "test-secret",
+		AccessExpiry:  15 * time.Minute,
+		RefreshExpiry: 24 * time.Hour,
+	})
+
+	authService := auth.NewService(userRepo, jwtService)
+
+	// Registrar usuário usando o auth service
+	registerReq := &authEntity.RegisterRequest{
+		Name:     testUser.Name,
+		Email:    testUser.Email,
+		Password: testUser.Password,
+	}
+
+	_, err := authService.Register(registerReq)
+	if err != nil {
+		panic(err) // Falhar o teste se não conseguir criar o usuário
+	}
 
 	return router
 }
 
 func TestRouter_HealthCheck(t *testing.T) {
-	router := setupTestRouter()
+	router := setupTestRouterV1()
 
 	req, err := http.NewRequest("GET", "/healthz", nil)
 	checkErr(t, err)
@@ -42,13 +83,39 @@ func TestRouter_HealthCheck(t *testing.T) {
 }
 
 func TestRouter_UserEndpoints(t *testing.T) {
-	router := setupTestRouter()
+	router := setupTestRouterV1()
+
+	// Primeiro, fazer login para obter token
+	loginData := map[string]interface{}{
+		"email":    "test@example.com",
+		"password": "password123",
+	}
+
+	loginBody, err := json.Marshal(loginData)
+	checkErr(t, err)
+	loginReq, err := http.NewRequest("POST", "/auth/login", bytes.NewBuffer(loginBody))
+	checkErr(t, err)
+	loginReq.Header.Set("Content-Type", "application/json")
+	loginW := httptest.NewRecorder()
+	router.ServeHTTP(loginW, loginReq)
+
+	// Debug: ver o que está retornando
+	t.Logf("Login response status: %d", loginW.Code)
+	t.Logf("Login response body: %s", loginW.Body.String())
+
+	assert.Equal(t, http.StatusOK, loginW.Code)
+
+	// Extrair token da resposta
+	var loginResponse map[string]interface{}
+	err = json.Unmarshal(loginW.Body.Bytes(), &loginResponse)
+	checkErr(t, err)
+	accessToken := loginResponse["access_token"].(string)
 
 	// Test user creation
 	userData := map[string]interface{}{
-		"name":     "Test User",
-		"email":    "test@example.com",
-		"password": "password123",
+		"name":     "Integration Test User",
+		"email":    "integration@test.com",
+		"password": "testpass123",
 	}
 
 	body, err := json.Marshal(userData)
@@ -56,6 +123,7 @@ func TestRouter_UserEndpoints(t *testing.T) {
 	req, err := http.NewRequest("POST", "/users/", bytes.NewBuffer(body))
 	checkErr(t, err)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -64,14 +132,16 @@ func TestRouter_UserEndpoints(t *testing.T) {
 	// Test get all users
 	req, err = http.NewRequest("GET", "/users/", nil)
 	checkErr(t, err)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	// Test get user by ID
-	req, err = http.NewRequest("GET", "/users/1", nil)
+	req, err = http.NewRequest("GET", "/users/2", nil) // ID 2 para o novo usuário
 	checkErr(t, err)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -86,17 +156,19 @@ func TestRouter_UserEndpoints(t *testing.T) {
 
 	body, err = json.Marshal(updateData)
 	checkErr(t, err)
-	req, err = http.NewRequest("PUT", "/users/1", bytes.NewBuffer(body))
+	req, err = http.NewRequest("PUT", "/users/2", bytes.NewBuffer(body))
 	checkErr(t, err)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusOK, w.Code)
 
 	// Test delete user
-	req, err = http.NewRequest("DELETE", "/users/1", nil)
+	req, err = http.NewRequest("DELETE", "/users/2", nil)
 	checkErr(t, err)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -104,7 +176,33 @@ func TestRouter_UserEndpoints(t *testing.T) {
 }
 
 func TestRouter_DeckEndpoints(t *testing.T) {
-	router := setupTestRouter()
+	router := setupTestRouterV1()
+
+	// Primeiro, fazer login para obter token
+	loginData := map[string]interface{}{
+		"email":    "test@example.com",
+		"password": "password123",
+	}
+
+	loginBody, err := json.Marshal(loginData)
+	checkErr(t, err)
+	loginReq, err := http.NewRequest("POST", "/auth/login", bytes.NewBuffer(loginBody))
+	checkErr(t, err)
+	loginReq.Header.Set("Content-Type", "application/json")
+	loginW := httptest.NewRecorder()
+	router.ServeHTTP(loginW, loginReq)
+
+	// Debug: ver o que está retornando
+	t.Logf("Login response status: %d", loginW.Code)
+	t.Logf("Login response body: %s", loginW.Body.String())
+
+	assert.Equal(t, http.StatusOK, loginW.Code)
+
+	// Extrair token da resposta
+	var loginResponse map[string]interface{}
+	err = json.Unmarshal(loginW.Body.Bytes(), &loginResponse)
+	checkErr(t, err)
+	accessToken := loginResponse["access_token"].(string)
 
 	// Test deck creation
 	deckData := map[string]interface{}{
@@ -120,6 +218,7 @@ func TestRouter_DeckEndpoints(t *testing.T) {
 	req, err := http.NewRequest("POST", "/decks/", bytes.NewBuffer(body))
 	checkErr(t, err)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -128,6 +227,7 @@ func TestRouter_DeckEndpoints(t *testing.T) {
 	// Test get all decks
 	req, err = http.NewRequest("GET", "/decks/", nil)
 	checkErr(t, err)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -136,6 +236,7 @@ func TestRouter_DeckEndpoints(t *testing.T) {
 	// Test get deck by ID
 	req, err = http.NewRequest("GET", "/decks/1", nil)
 	checkErr(t, err)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -155,6 +256,7 @@ func TestRouter_DeckEndpoints(t *testing.T) {
 	req, err = http.NewRequest("PUT", "/decks/1", bytes.NewBuffer(body))
 	checkErr(t, err)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -163,6 +265,7 @@ func TestRouter_DeckEndpoints(t *testing.T) {
 	// Test delete deck
 	req, err = http.NewRequest("DELETE", "/decks/1", nil)
 	checkErr(t, err)
+	req.Header.Set("Authorization", "Bearer "+accessToken)
 	w = httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -170,7 +273,7 @@ func TestRouter_DeckEndpoints(t *testing.T) {
 }
 
 func TestRouter_NotFound(t *testing.T) {
-	router := setupTestRouter()
+	router := setupTestRouterV1()
 
 	req, err := http.NewRequest("GET", "/nonexistent", nil)
 	checkErr(t, err)

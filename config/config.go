@@ -1,48 +1,51 @@
 package config
 
 import (
-	"fmt"
+	"time"
 
 	"github.com/ilyakaznacheev/cleanenv"
 )
 
-type (
-	// Config -.
-	Config struct {
-		App  `yaml:"app"`
-		HTTP `yaml:"http"`
-		Log  `yaml:"logger"`
-	}
+type Config struct {
+	App  AppConfig  `yaml:"app"`
+	HTTP HTTPConfig `yaml:"http"`
+	Log  LogConfig  `yaml:"logger"`
+	JWT  JWTConfig  `yaml:"jwt"`
+}
 
-	// App -.
-	App struct {
-		Name    string `env-required:"true" yaml:"name"    env:"APP_NAME"`
-		Version string `env-required:"true" yaml:"version" env:"APP_VERSION"`
-	}
+type AppConfig struct {
+	Name    string `yaml:"name"`
+	Version string `yaml:"version"`
+}
 
-	// HTTP -.
-	HTTP struct {
-		Port string `env-required:"true" yaml:"port" env:"HTTP_PORT"`
-	}
+type HTTPConfig struct {
+	Port string `yaml:"port"`
+}
 
-	// Log -.
-	Log struct {
-		Level string `env-required:"true" yaml:"log_level"   env:"LOG_LEVEL"`
-	}
-)
+type LogConfig struct {
+	Level      string `yaml:"log_level"`
+	RollbarEnv string `yaml:"rollbar_env"`
+}
 
-// NewConfig returns app config.
+type JWTConfig struct {
+	SecretKey     string        `yaml:"secret_key"`
+	AccessExpiry  time.Duration `yaml:"access_expiry"`
+	RefreshExpiry time.Duration `yaml:"refresh_expiry"`
+}
+
 func NewConfig() (*Config, error) {
 	cfg := &Config{}
-
-	err := cleanenv.ReadConfig("./config/config.yaml", cfg)
-	if err != nil {
-		return nil, fmt.Errorf("config error: %w", err)
-	}
-
-	err = cleanenv.ReadEnv(cfg)
+	err := cleanenv.ReadConfig("config/config.yaml", cfg)
 	if err != nil {
 		return nil, err
+	}
+
+	// Set default JWT values if not provided
+	if cfg.JWT.AccessExpiry == 0 {
+		cfg.JWT.AccessExpiry = 15 * time.Minute
+	}
+	if cfg.JWT.RefreshExpiry == 0 {
+		cfg.JWT.RefreshExpiry = 7 * 24 * time.Hour // 7 dias
 	}
 
 	return cfg, nil
