@@ -1,6 +1,6 @@
 //go:build integration
 
-package v1
+package v1_test
 
 import (
 	"bytes"
@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	v1 "github.com/josofm/liliana/internal/controller/http/v1"
 	deckEntity "github.com/josofm/liliana/internal/entity/deck"
 	userEntity "github.com/josofm/liliana/internal/entity/user"
 	deckRepo "github.com/josofm/liliana/internal/repository/deck"
@@ -23,8 +24,8 @@ func setupValidationTest() *gin.Engine {
 	router := gin.New()
 	userRepository := userRepo.NewInMemoryRepo()
 	deckRepository := deckRepo.NewInMemoryRepo()
-	NewUserHandler(router, userRepository)
-	NewDeckHandler(router, deckRepository)
+	v1.NewUserHandler(router, userRepository)
+	v1.NewDeckHandler(router, deckRepository)
 	return router
 }
 
@@ -33,13 +34,13 @@ func TestUserHandler_Validation(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		userRequest    UserRequest
+		userRequest    v1.UserRequest
 		expectedStatus int
 		shouldHaveID   bool
 	}{
 		{
 			name: "valid_user",
-			userRequest: UserRequest{
+			userRequest: v1.UserRequest{
 				Name:     "John Doe",
 				Email:    "john@example.com",
 				Password: "password123",
@@ -49,7 +50,7 @@ func TestUserHandler_Validation(t *testing.T) {
 		},
 		{
 			name: "invalid_email",
-			userRequest: UserRequest{
+			userRequest: v1.UserRequest{
 				Name:     "John Doe",
 				Email:    "invalid-email",
 				Password: "password123",
@@ -59,7 +60,7 @@ func TestUserHandler_Validation(t *testing.T) {
 		},
 		{
 			name: "name_too_short",
-			userRequest: UserRequest{
+			userRequest: v1.UserRequest{
 				Name:     "J",
 				Email:    "john@example.com",
 				Password: "password123",
@@ -69,7 +70,7 @@ func TestUserHandler_Validation(t *testing.T) {
 		},
 		{
 			name: "password_too_short",
-			userRequest: UserRequest{
+			userRequest: v1.UserRequest{
 				Name:     "John Doe",
 				Email:    "john@example.com",
 				Password: "123",
@@ -79,7 +80,7 @@ func TestUserHandler_Validation(t *testing.T) {
 		},
 		{
 			name: "missing_required_fields",
-			userRequest: UserRequest{
+			userRequest: v1.UserRequest{
 				Name:     "",
 				Email:    "",
 				Password: "",
@@ -120,13 +121,13 @@ func TestDeckHandler_Validation(t *testing.T) {
 
 	tests := []struct {
 		name           string
-		deckRequest    DeckRequest
+		deckRequest    v1.DeckRequest
 		expectedStatus int
 		shouldHaveID   bool
 	}{
 		{
 			name: "valid_deck",
-			deckRequest: DeckRequest{
+			deckRequest: v1.DeckRequest{
 				Name:      "My Commander Deck",
 				Color:     "WUBRG",
 				Commander: "Atraxa, Praetors' Voice",
@@ -137,7 +138,7 @@ func TestDeckHandler_Validation(t *testing.T) {
 		},
 		{
 			name: "invalid_color",
-			deckRequest: DeckRequest{
+			deckRequest: v1.DeckRequest{
 				Name:      "My Commander Deck",
 				Color:     "INVALID",
 				Commander: "Atraxa, Praetors' Voice",
@@ -148,7 +149,7 @@ func TestDeckHandler_Validation(t *testing.T) {
 		},
 		{
 			name: "valid_color_W",
-			deckRequest: DeckRequest{
+			deckRequest: v1.DeckRequest{
 				Name:      "White Deck",
 				Color:     "W",
 				Commander: "Sram, Senior Edificer",
@@ -159,7 +160,7 @@ func TestDeckHandler_Validation(t *testing.T) {
 		},
 		{
 			name: "invalid_owner_id",
-			deckRequest: DeckRequest{
+			deckRequest: v1.DeckRequest{
 				Name:      "My Commander Deck",
 				Color:     "WUBRG",
 				Commander: "Atraxa, Praetors' Voice",
@@ -170,7 +171,7 @@ func TestDeckHandler_Validation(t *testing.T) {
 		},
 		{
 			name: "valid_URL",
-			deckRequest: DeckRequest{
+			deckRequest: v1.DeckRequest{
 				Name:       "My Commander Deck",
 				Color:      "WUBRG",
 				Commander:  "Atraxa, Praetors' Voice",
@@ -182,7 +183,7 @@ func TestDeckHandler_Validation(t *testing.T) {
 		},
 		{
 			name: "invalid_URL",
-			deckRequest: DeckRequest{
+			deckRequest: v1.DeckRequest{
 				Name:       "My Commander Deck",
 				Color:      "WUBRG",
 				Commander:  "Atraxa, Praetors' Voice",

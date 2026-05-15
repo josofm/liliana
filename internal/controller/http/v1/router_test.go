@@ -1,6 +1,6 @@
 //go:build integration
 
-package v1
+package v1_test
 
 import (
 	"bytes"
@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/josofm/liliana/config"
+	v1 "github.com/josofm/liliana/internal/controller/http/v1"
 	authEntity "github.com/josofm/liliana/internal/entity/auth"
 	userEntity "github.com/josofm/liliana/internal/entity/user"
 	deckRepo "github.com/josofm/liliana/internal/repository/deck"
@@ -38,7 +39,7 @@ func setupTestRouterV1() *gin.Engine {
 		},
 	}
 
-	NewRouter(router, l, userRepo, deckRepo, cfg)
+	v1.NewRouter(router, l, userRepo, deckRepo, cfg)
 
 	// Criar usuário de teste para autenticação
 	testUser := &userEntity.User{

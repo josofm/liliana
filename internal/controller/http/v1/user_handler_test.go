@@ -1,6 +1,6 @@
 //go:build integration
 
-package v1
+package v1_test
 
 import (
 	"bytes"
@@ -10,6 +10,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	v1 "github.com/josofm/liliana/internal/controller/http/v1"
 	userEntity "github.com/josofm/liliana/internal/entity/user"
 	userRepo "github.com/josofm/liliana/internal/repository/user"
 
@@ -20,14 +21,14 @@ func setupUserHandler() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	repo := userRepo.NewInMemoryRepo()
-	NewUserHandler(router, repo)
+	v1.NewUserHandler(router, repo)
 	return router
 }
 
 func TestUserHandler_Create(t *testing.T) {
 	router := setupUserHandler()
 
-	userRequest := UserRequest{
+	userRequest := v1.UserRequest{
 		Name:     "Test User",
 		Email:    "test@example.com",
 		Password: "password123",
@@ -70,8 +71,8 @@ func TestUserHandler_GetAll(t *testing.T) {
 	router := setupUserHandler()
 
 	// Create test users via HTTP
-	userRequest1 := UserRequest{Name: "User 1", Email: "user1@example.com", Password: "pass123"}
-	userRequest2 := UserRequest{Name: "User 2", Email: "user2@example.com", Password: "pass456"}
+	userRequest1 := v1.UserRequest{Name: "User 1", Email: "user1@example.com", Password: "pass123"}
+	userRequest2 := v1.UserRequest{Name: "User 2", Email: "user2@example.com", Password: "pass456"}
 
 	// Create first user
 	body1, err := json.Marshal(userRequest1)
@@ -111,7 +112,7 @@ func TestUserHandler_GetByID(t *testing.T) {
 	router := setupUserHandler()
 
 	// Create test user via HTTP
-	userRequest := UserRequest{Name: "Test User", Email: "test@example.com", Password: "password123"}
+	userRequest := v1.UserRequest{Name: "Test User", Email: "test@example.com", Password: "password123"}
 	body, err := json.Marshal(userRequest)
 	checkErr(t, err)
 	req1, err := http.NewRequest("POST", "/users/", bytes.NewBuffer(body))
@@ -151,7 +152,7 @@ func TestUserHandler_Update(t *testing.T) {
 	router := setupUserHandler()
 
 	// Create user via HTTP
-	userRequest := UserRequest{Name: "Original Name", Email: "original@example.com", Password: "password123"}
+	userRequest := v1.UserRequest{Name: "Original Name", Email: "original@example.com", Password: "password123"}
 	body1, err := json.Marshal(userRequest)
 	checkErr(t, err)
 	req1, err := http.NewRequest("POST", "/users/", bytes.NewBuffer(body1))
@@ -162,7 +163,7 @@ func TestUserHandler_Update(t *testing.T) {
 	assert.Equal(t, http.StatusCreated, w1.Code)
 
 	// Update user
-	updatedUserRequest := UserRequest{Name: "Updated Name", Email: "updated@example.com", Password: "newpass"}
+	updatedUserRequest := v1.UserRequest{Name: "Updated Name", Email: "updated@example.com", Password: "newpass"}
 	body, err := json.Marshal(updatedUserRequest)
 	checkErr(t, err)
 
@@ -197,7 +198,7 @@ func TestUserHandler_Delete(t *testing.T) {
 	router := setupUserHandler()
 
 	// Create user via HTTP
-	userRequest := UserRequest{Name: "Test User", Email: "test@example.com", Password: "password123"}
+	userRequest := v1.UserRequest{Name: "Test User", Email: "test@example.com", Password: "password123"}
 	body, err := json.Marshal(userRequest)
 	checkErr(t, err)
 	req1, err := http.NewRequest("POST", "/users/", bytes.NewBuffer(body))
