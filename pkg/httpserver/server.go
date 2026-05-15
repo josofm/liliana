@@ -47,12 +47,11 @@ func (s *Server) start() {
 	}()
 }
 
-// Notify -.
+
 func (s *Server) Notify() <-chan error {
 	return s.notify
 }
 
-// Shutdown -.
 func (s *Server) Shutdown() error {
 	ctx, cancel := context.WithTimeout(context.Background(), s.shutdownTimeout)
 	defer cancel()

@@ -1,6 +1,6 @@
 //go:build integration
 
-package v1
+package v1_test
 
 import "testing"
 

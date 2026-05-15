@@ -1,4 +1,4 @@
-package v1
+package v1_test
 
 import (
 	"net/http"
@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	v1 "github.com/josofm/liliana/internal/controller/http/v1"
 	"github.com/josofm/liliana/internal/service/auth"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -32,11 +33,11 @@ func TestAuthMiddleware_ValidToken(t *testing.T) {
 	authService := auth.NewService(nil, jwtService) // nil repo para este teste
 
 	// Adicionar middleware
-	router.Use(AuthMiddleware(authService))
+	router.Use(v1.AuthMiddleware(authService))
 
 	// Rota de teste
 	router.GET("/test", func(c *gin.Context) {
-		userID, exists := GetUserIDFromContext(c)
+		userID, exists := v1.GetUserIDFromContext(c)
 		if !exists {
 			c.JSON(http.StatusInternalServerError, gin.H{"error": "user_id not found"})
 			return
@@ -67,7 +68,7 @@ func TestAuthMiddleware_MissingHeader(t *testing.T) {
 	})
 	authService := auth.NewService(nil, jwtService)
 
-	router.Use(AuthMiddleware(authService))
+	router.Use(v1.AuthMiddleware(authService))
 	router.GET("/test", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
@@ -88,7 +89,7 @@ func TestAuthMiddleware_InvalidFormat(t *testing.T) {
 	})
 	authService := auth.NewService(nil, jwtService)
 
-	router.Use(AuthMiddleware(authService))
+	router.Use(v1.AuthMiddleware(authService))
 	router.GET("/test", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
@@ -111,7 +112,7 @@ func TestAuthMiddleware_InvalidToken(t *testing.T) {
 	})
 	authService := auth.NewService(nil, jwtService)
 
-	router.Use(AuthMiddleware(authService))
+	router.Use(v1.AuthMiddleware(authService))
 	router.GET("/test", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
@@ -136,10 +137,10 @@ func TestGetUserIDFromContext(t *testing.T) {
 	})
 	authService := auth.NewService(nil, jwtService)
 
-	router.Use(AuthMiddleware(authService))
+	router.Use(v1.AuthMiddleware(authService))
 	router.GET("/test", func(c *gin.Context) {
-		userID, exists := GetUserIDFromContext(c)
-		email, emailExists := GetUserEmailFromContext(c)
+		userID, exists := v1.GetUserIDFromContext(c)
+		email, emailExists := v1.GetUserEmailFromContext(c)
 
 		c.JSON(http.StatusOK, gin.H{
 			"user_id":      userID,
