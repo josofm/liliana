@@ -21,7 +21,10 @@ func Run(cfg *config.Config) {
 	handler := gin.New()
 	userRepo := userRepo.NewInMemoryRepo()
 	deckRepo := deckRepo.NewInMemoryRepo()
-	v1.NewRouter(handler, l, userRepo, deckRepo)
+
+	// Passar a configuração para o router
+	v1.NewRouter(handler, l, userRepo, deckRepo, cfg)
+
 	httpServer := httpserver.New(handler)
 
 	interrupt := make(chan os.Signal, 1)

@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/josofm/liliana/config"
@@ -88,15 +89,20 @@ func TestApp_Config(t *testing.T) {
 	if err != nil {
 		// If config file doesn't exist, create a minimal config
 		cfg = &config.Config{
-			App: config.App{
+			App: config.AppConfig{
 				Name:    "test-app",
 				Version: "1.0.0",
 			},
-			HTTP: config.HTTP{
+			HTTP: config.HTTPConfig{
 				Port: "8080",
 			},
-			Log: config.Log{
+			Log: config.LogConfig{
 				Level: "debug",
+			},
+			JWT: config.JWTConfig{
+				SecretKey:     "test-secret",
+				AccessExpiry:  15 * time.Minute,
+				RefreshExpiry: 24 * time.Hour,
 			},
 		}
 	}
