@@ -1,7 +1,7 @@
 # ───────────────────────────────
 # Stage 1 - Build
 # ───────────────────────────────
-FROM golang:1.24.2 AS builder
+FROM golang:1.26.3 AS builder
 
 WORKDIR /app
 
@@ -16,7 +16,7 @@ RUN CGO_ENABLED=0 GOOS=linux go build -o liliana ./cmd/liliana.go
 # ───────────────────────────────
 # Stage 2 - Dev/Test Image
 # ───────────────────────────────
-FROM golang:1.24.2 AS devimage
+FROM golang:1.26.3 AS devimage
 
 WORKDIR /app
 

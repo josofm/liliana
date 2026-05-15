@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"time"
 
 	"github.com/ilyakaznacheev/cleanenv"
@@ -11,6 +12,7 @@ type Config struct {
 	HTTP HTTPConfig `yaml:"http"`
 	Log  LogConfig  `yaml:"logger"`
 	JWT  JWTConfig  `yaml:"jwt"`
+	DB   DBConfig   `yaml:"database"`
 }
 
 type AppConfig struct {
@@ -33,6 +35,10 @@ type JWTConfig struct {
 	RefreshExpiry time.Duration `yaml:"refresh_expiry"`
 }
 
+type DBConfig struct {
+	URL string `yaml:"url" env:"DATABASE_URL"`
+}
+
 func NewConfig() (*Config, error) {
 	cfg := &Config{}
 	err := cleanenv.ReadConfig("config/config.yaml", cfg)
@@ -46,6 +52,9 @@ func NewConfig() (*Config, error) {
 	}
 	if cfg.JWT.RefreshExpiry == 0 {
 		cfg.JWT.RefreshExpiry = 7 * 24 * time.Hour // 7 dias
+	}
+	if databaseURL := os.Getenv("DATABASE_URL"); databaseURL != "" {
+		cfg.DB.URL = databaseURL
 	}
 
 	return cfg, nil

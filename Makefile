@@ -22,12 +22,14 @@ unit: image-dev ##@unit Run unit tests
 
 .PHONY: start-compose
 start-compose:
-	docker compose -f docker-compose.yaml up -d
+	docker compose -f docker-compose.yaml up -d postgres
+
+.PHONY: stop-compose
+stop-compose:
+	docker compose -f docker-compose.yaml down --remove-orphans
 
 .PHONY: integration
 integration:
-	docker compose -f docker-compose.yaml up -d
-	-docker compose exec liliana go test -race -timeout 60s -tags integration ./...
-	docker compose down
+	go run ./hack/integration
 
 
