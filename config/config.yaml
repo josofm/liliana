@@ -13,3 +13,6 @@ jwt:
   secret_key: 'your-super-secret-jwt-key-change-in-production'
   access_expiry: '15m'
   refresh_expiry: '168h'  # 7 dias
+
+database:
+  url: ''
