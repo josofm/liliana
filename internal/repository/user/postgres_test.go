@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const defaultPostgresTestDSN = "postgres://liliana:liliana@localhost:5433/liliana_test?sslmode=disable"
+const defaultPostgresTestDSN = "postgres://liliana:liliana@localhost:5432/liliana_test?sslmode=disable"
 
 func setupPostgresRepo(t *testing.T) Repository {
 	t.Helper()
@@ -36,24 +36,14 @@ func setupPostgresRepo(t *testing.T) Repository {
 		t.Skipf("postgres test database unavailable: %v", err)
 	}
 
-	ensurePostgresUserSchema(t, db)
+	truncatePostgresUsers(t, db)
 	return NewPostgresRepo(db)
 }
 
-func ensurePostgresUserSchema(t *testing.T, db *sql.DB) {
+func truncatePostgresUsers(t *testing.T, db *sql.DB) {
 	t.Helper()
 
-	_, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS users (
-			id BIGSERIAL PRIMARY KEY,
-			name TEXT NOT NULL,
-			email TEXT NOT NULL UNIQUE,
-			password TEXT NOT NULL
-		)
-	`)
-	require.NoError(t, err)
-
-	_, err = db.Exec(`TRUNCATE TABLE users RESTART IDENTITY`)
+	_, err := db.Exec(`TRUNCATE TABLE users RESTART IDENTITY`)
 	require.NoError(t, err)
 }
 

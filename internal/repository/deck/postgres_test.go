@@ -14,7 +14,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-const defaultPostgresTestDSN = "postgres://liliana:liliana@localhost:5433/liliana_test?sslmode=disable"
+const defaultPostgresTestDSN = "postgres://liliana:liliana@localhost:5432/liliana_test?sslmode=disable"
 
 func setupPostgresRepo(t *testing.T) Repository {
 	t.Helper()
@@ -36,26 +36,14 @@ func setupPostgresRepo(t *testing.T) Repository {
 		t.Skipf("postgres test database unavailable: %v", err)
 	}
 
-	ensurePostgresDeckSchema(t, db)
+	truncatePostgresDecks(t, db)
 	return NewPostgresRepo(db)
 }
 
-func ensurePostgresDeckSchema(t *testing.T, db *sql.DB) {
+func truncatePostgresDecks(t *testing.T, db *sql.DB) {
 	t.Helper()
 
-	_, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS decks (
-			id BIGSERIAL PRIMARY KEY,
-			name TEXT NOT NULL,
-			color TEXT NOT NULL,
-			commander TEXT NOT NULL,
-			owner_id BIGINT NOT NULL,
-			source_link TEXT NOT NULL DEFAULT ''
-		)
-	`)
-	require.NoError(t, err)
-
-	_, err = db.Exec(`TRUNCATE TABLE decks RESTART IDENTITY`)
+	_, err := db.Exec(`TRUNCATE TABLE decks RESTART IDENTITY`)
 	require.NoError(t, err)
 }
 

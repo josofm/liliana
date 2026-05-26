@@ -28,6 +28,10 @@ start-compose:
 stop-compose:
 	docker compose -f docker-compose.yaml down --remove-orphans
 
+.PHONY: migrate
+migrate:
+	go run ./hack/migrate up
+
 .PHONY: integration
 integration:
 	go run ./hack/integration
