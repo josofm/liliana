@@ -13,6 +13,7 @@ func TestNewConfig_EnvOverrides(t *testing.T) {
 	t.Setenv("LOG_LEVEL", "warn")
 	t.Setenv("JWT_SECRET_KEY", "env-secret")
 	t.Setenv("DATABASE_URL", "postgres://example")
+	t.Setenv("AUTO_MIGRATE", "true")
 
 	cfg, err := NewConfig()
 	require.NoError(t, err)
@@ -22,6 +23,7 @@ func TestNewConfig_EnvOverrides(t *testing.T) {
 	assert.Equal(t, "warn", cfg.Log.Level)
 	assert.Equal(t, "env-secret", cfg.JWT.SecretKey)
 	assert.Equal(t, "postgres://example", cfg.DB.URL)
+	assert.True(t, cfg.DB.AutoMigrate)
 }
 
 func TestNewConfig_RenderPortFallback(t *testing.T) {
