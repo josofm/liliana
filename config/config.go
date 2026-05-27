@@ -44,9 +44,11 @@ type DBConfig struct {
 
 func NewConfig() (*Config, error) {
 	cfg := &Config{}
-	err := cleanenv.ReadConfig(configPath(), cfg)
-	if err != nil {
-		return nil, err
+	if path, ok := configPath(); ok {
+		err := cleanenv.ReadConfig(path, cfg)
+		if err != nil {
+			return nil, err
+		}
 	}
 	if err := cleanenv.ReadEnv(cfg); err != nil {
 		return nil, err
@@ -81,12 +83,15 @@ func NewConfig() (*Config, error) {
 	return cfg, nil
 }
 
-func configPath() string {
+func configPath() (string, bool) {
 	if _, err := os.Stat("config/config.yaml"); err == nil {
-		return "config/config.yaml"
+		return "config/config.yaml", true
+	}
+	if _, err := os.Stat("config.yaml"); err == nil {
+		return "config.yaml", true
 	}
 
-	return "config.yaml"
+	return "", false
 }
 
 func (c *Config) Validate() error {
