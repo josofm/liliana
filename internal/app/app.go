@@ -33,7 +33,7 @@ func Run(cfg *config.Config) {
 	// Passar a configuração para o router
 	v1.NewRouter(handler, l, userRepo, deckRepo, cfg)
 
-	httpServer := httpserver.New(handler)
+	httpServer := httpserver.New(handler, cfg.HTTP.Port)
 
 	interrupt := make(chan os.Signal, 1)
 	signal.Notify(interrupt, os.Interrupt, syscall.SIGTERM)

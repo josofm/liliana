@@ -30,7 +30,7 @@ stop-compose:
 
 .PHONY: migrate
 migrate:
-	go run ./hack/migrate up
+	go run ./cmd/migrate up
 
 .PHONY: integration
 integration:

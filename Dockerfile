@@ -11,7 +11,8 @@ RUN go mod download
 COPY . .
 
 
-RUN CGO_ENABLED=0 GOOS=linux go build -o liliana ./cmd/liliana.go
+RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -o liliana ./cmd/liliana.go
+RUN CGO_ENABLED=0 GOOS=linux go build -buildvcs=false -o migrate ./cmd/migrate
 
 # ───────────────────────────────
 # Stage 2 - Dev/Test Image
@@ -34,7 +35,9 @@ FROM gcr.io/distroless/static AS production
 WORKDIR /
 
 COPY --from=builder /app/liliana /liliana
+COPY --from=builder /app/migrate /migrate
+COPY --from=builder /app/migrations /migrations
 
-EXPOSE 8080
+EXPOSE 10000
 
 ENTRYPOINT ["/liliana"]

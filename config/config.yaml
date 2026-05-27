@@ -1,6 +1,7 @@
 app:
   name: 'liliana'
   version: '1.0.0'
+  environment: 'development'
 
 http:
   port: '8080'
@@ -10,7 +11,7 @@ logger:
   rollbar_env: 'liliana'
 
 jwt:
-  secret_key: 'your-super-secret-jwt-key-change-in-production'
+  secret_key: 'dev-secret-change-me'
   access_expiry: '15m'
   refresh_expiry: '168h'  # 7 dias
 

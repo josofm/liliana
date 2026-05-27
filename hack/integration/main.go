@@ -18,7 +18,7 @@ func main() {
 		err := run(
 			"docker", "compose", "-f", "docker-compose.yaml",
 			"run", "--rm", "--build", "--no-deps",
-			"liliana", "go", "run", "./hack/migrate", "up",
+			"liliana", "go", "run", "./cmd/migrate", "up",
 		)
 		if err != nil {
 			status = exitCode(err)
