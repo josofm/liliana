@@ -11,6 +11,7 @@ import (
 	_ "github.com/jackc/pgx/v5/stdlib"
 	"github.com/josofm/liliana/config"
 	v1 "github.com/josofm/liliana/internal/controller/http/v1"
+	"github.com/josofm/liliana/internal/migration"
 	deckRepo "github.com/josofm/liliana/internal/repository/deck"
 	userRepo "github.com/josofm/liliana/internal/repository/user"
 	"github.com/josofm/liliana/pkg/httpserver"
@@ -26,6 +27,12 @@ func Run(cfg *config.Config) {
 		l.Fatal(fmt.Errorf("app - Run - openDatabase: %w", err))
 	}
 	defer db.Close()
+
+	if cfg.DB.AutoMigrate {
+		if err := migration.Up(db, "migrations"); err != nil {
+			l.Fatal(fmt.Errorf("app - Run - migration.Up: %w", err))
+		}
+	}
 
 	userRepo := userRepo.NewPostgresRepo(db)
 	deckRepo := deckRepo.NewPostgresRepo(db)

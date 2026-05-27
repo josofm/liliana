@@ -38,7 +38,8 @@ type JWTConfig struct {
 }
 
 type DBConfig struct {
-	URL string `yaml:"url" env:"DATABASE_URL"`
+	URL         string `yaml:"url" env:"DATABASE_URL"`
+	AutoMigrate bool   `yaml:"auto_migrate" env:"AUTO_MIGRATE"`
 }
 
 func NewConfig() (*Config, error) {
