@@ -26,12 +26,24 @@ func TestNewConfig_EnvOverrides(t *testing.T) {
 
 func TestNewConfig_RenderPortFallback(t *testing.T) {
 	t.Setenv("APP_ENV", "test")
+	t.Setenv("HTTP_PORT", "")
 	t.Setenv("PORT", "10000")
 
 	cfg, err := NewConfig()
 	require.NoError(t, err)
 
 	assert.Equal(t, "10000", cfg.HTTP.Port)
+}
+
+func TestNewConfig_HTTPPortOverridesRenderPort(t *testing.T) {
+	t.Setenv("APP_ENV", "test")
+	t.Setenv("HTTP_PORT", "9090")
+	t.Setenv("PORT", "10000")
+
+	cfg, err := NewConfig()
+	require.NoError(t, err)
+
+	assert.Equal(t, "9090", cfg.HTTP.Port)
 }
 
 func TestNewConfig_ProductionRequiresSecrets(t *testing.T) {
