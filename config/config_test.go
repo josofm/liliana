@@ -69,6 +69,7 @@ func TestNewConfig_ProductionFromEnvWithoutConfigFile(t *testing.T) {
 	})
 
 	t.Setenv("APP_ENV", "production")
+	t.Setenv("HTTP_PORT", "")
 	t.Setenv("PORT", "10000")
 	t.Setenv("DATABASE_URL", "postgres://example")
 	t.Setenv("JWT_SECRET_KEY", "production-secret")
