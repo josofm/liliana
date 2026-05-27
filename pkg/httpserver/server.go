@@ -3,6 +3,7 @@ package httpserver
 import (
 	"context"
 	"net/http"
+	"strings"
 	"time"
 )
 
@@ -21,12 +22,20 @@ type Server struct {
 }
 
 // New -.
-func New(handler http.Handler) *Server {
+func New(handler http.Handler, port string) *Server {
+	addr := _defaultAddr
+	if port != "" {
+		addr = port
+		if !strings.HasPrefix(addr, ":") {
+			addr = ":" + addr
+		}
+	}
+
 	httpServer := &http.Server{
 		Handler:      handler,
 		ReadTimeout:  _defaultReadTimeout,
 		WriteTimeout: _defaultWriteTimeout,
-		Addr:         _defaultAddr,
+		Addr:         addr,
 	}
 
 	s := &Server{
@@ -46,7 +55,6 @@ func (s *Server) start() {
 		close(s.notify)
 	}()
 }
-
 
 func (s *Server) Notify() <-chan error {
 	return s.notify
