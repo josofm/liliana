@@ -1,6 +1,7 @@
 package config
 
 import (
+	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -55,4 +56,29 @@ func TestNewConfig_ProductionRequiresSecrets(t *testing.T) {
 
 	_, err := NewConfig()
 	require.Error(t, err)
+}
+
+func TestNewConfig_ProductionFromEnvWithoutConfigFile(t *testing.T) {
+	originalDir, err := os.Getwd()
+	require.NoError(t, err)
+
+	tempDir := t.TempDir()
+	require.NoError(t, os.Chdir(tempDir))
+	t.Cleanup(func() {
+		require.NoError(t, os.Chdir(originalDir))
+	})
+
+	t.Setenv("APP_ENV", "production")
+	t.Setenv("HTTP_PORT", "")
+	t.Setenv("PORT", "10000")
+	t.Setenv("DATABASE_URL", "postgres://example")
+	t.Setenv("JWT_SECRET_KEY", "production-secret")
+
+	cfg, err := NewConfig()
+	require.NoError(t, err)
+
+	assert.Equal(t, "production", cfg.App.Environment)
+	assert.Equal(t, "10000", cfg.HTTP.Port)
+	assert.Equal(t, "postgres://example", cfg.DB.URL)
+	assert.Equal(t, "production-secret", cfg.JWT.SecretKey)
 }
