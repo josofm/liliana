@@ -88,6 +88,7 @@ func TestValidator_ValidateDeck(t *testing.T) {
 			deck: deckEntity.Deck{
 				Name:      "My Commander Deck",
 				Color:     "WUBRG",
+				Format:    "commander",
 				Commander: "Atraxa, Praetors' Voice",
 				OwnerID:   1,
 			},
@@ -98,6 +99,7 @@ func TestValidator_ValidateDeck(t *testing.T) {
 			deck: deckEntity.Deck{
 				Name:      "My Commander Deck",
 				Color:     "INVALID",
+				Format:    "commander",
 				Commander: "Atraxa, Praetors' Voice",
 				OwnerID:   1,
 			},
@@ -108,6 +110,7 @@ func TestValidator_ValidateDeck(t *testing.T) {
 			deck: deckEntity.Deck{
 				Name:      "White Deck",
 				Color:     "W",
+				Format:    "commander",
 				Commander: "Sram, Senior Edificer",
 				OwnerID:   1,
 			},
@@ -118,6 +121,7 @@ func TestValidator_ValidateDeck(t *testing.T) {
 			deck: deckEntity.Deck{
 				Name:      "My Commander Deck",
 				Color:     "WUBRG",
+				Format:    "commander",
 				Commander: "Atraxa, Praetors' Voice",
 				OwnerID:   0,
 			},
@@ -128,6 +132,7 @@ func TestValidator_ValidateDeck(t *testing.T) {
 			deck: deckEntity.Deck{
 				Name:       "My Commander Deck",
 				Color:      "WUBRG",
+				Format:     "commander",
 				Commander:  "Atraxa, Praetors' Voice",
 				OwnerID:    1,
 				SourceLink: "https://archidekt.com/decks/123456",
@@ -139,9 +144,30 @@ func TestValidator_ValidateDeck(t *testing.T) {
 			deck: deckEntity.Deck{
 				Name:       "My Commander Deck",
 				Color:      "WUBRG",
+				Format:     "commander",
 				Commander:  "Atraxa, Praetors' Voice",
 				OwnerID:    1,
 				SourceLink: "not-a-url",
+			},
+			wantErr: true,
+		},
+		{
+			name: "valid non-commander deck without commander",
+			deck: deckEntity.Deck{
+				Name:    "Standard Deck",
+				Color:   "WU",
+				Format:  "standard",
+				OwnerID: 1,
+			},
+			wantErr: false,
+		},
+		{
+			name: "commander deck requires commander",
+			deck: deckEntity.Deck{
+				Name:    "Commander Deck",
+				Color:   "WU",
+				Format:  "commander",
+				OwnerID: 1,
 			},
 			wantErr: true,
 		},

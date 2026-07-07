@@ -58,6 +58,7 @@ func TestPostgresRepo_Create(t *testing.T) {
 	deck := &deckEntity.Deck{
 		Name:       "Test Deck",
 		Color:      "WUBRG",
+		Format:     "commander",
 		Commander:  "Atraxa, Praetors' Voice",
 		OwnerID:    1,
 		SourceLink: "https://archidekt.com/decks/123456",
@@ -71,8 +72,8 @@ func TestPostgresRepo_Create(t *testing.T) {
 func TestPostgresRepo_GetAll(t *testing.T) {
 	repo := setupPostgresRepo(t)
 
-	deck1 := &deckEntity.Deck{Name: "Deck 1", Color: "WU", Commander: "Azorius", OwnerID: 1}
-	deck2 := &deckEntity.Deck{Name: "Deck 2", Color: "BR", Commander: "Rakdos", OwnerID: 2}
+	deck1 := &deckEntity.Deck{Name: "Deck 1", Color: "WU", Format: "commander", Commander: "Azorius", OwnerID: 1}
+	deck2 := &deckEntity.Deck{Name: "Deck 2", Color: "BR", Format: "commander", Commander: "Rakdos", OwnerID: 2}
 
 	require.NoError(t, repo.Create(deck1))
 	require.NoError(t, repo.Create(deck2))
@@ -85,13 +86,14 @@ func TestPostgresRepo_GetAll(t *testing.T) {
 func TestPostgresRepo_GetByID(t *testing.T) {
 	repo := setupPostgresRepo(t)
 
-	deck := &deckEntity.Deck{Name: "Test Deck", Color: "WUBRG", Commander: "Atraxa", OwnerID: 1}
+	deck := &deckEntity.Deck{Name: "Test Deck", Color: "WUBRG", Format: "commander", Commander: "Atraxa", OwnerID: 1}
 	require.NoError(t, repo.Create(deck))
 
 	found, err := repo.GetByID(1)
 	assert.NoError(t, err)
 	assert.Equal(t, deck.Name, found.Name)
 	assert.Equal(t, deck.Color, found.Color)
+	assert.Equal(t, deck.Format, found.Format)
 	assert.Equal(t, deck.Commander, found.Commander)
 
 	notFound, err := repo.GetByID(999)
@@ -103,10 +105,10 @@ func TestPostgresRepo_GetByID(t *testing.T) {
 func TestPostgresRepo_Update(t *testing.T) {
 	repo := setupPostgresRepo(t)
 
-	deck := &deckEntity.Deck{Name: "Original Deck", Color: "WU", Commander: "Azorius", OwnerID: 1}
+	deck := &deckEntity.Deck{Name: "Original Deck", Color: "WU", Format: "commander", Commander: "Azorius", OwnerID: 1}
 	require.NoError(t, repo.Create(deck))
 
-	updatedDeck := &deckEntity.Deck{Name: "Updated Deck", Color: "BR", Commander: "Rakdos", OwnerID: 2}
+	updatedDeck := &deckEntity.Deck{Name: "Updated Deck", Color: "BR", Format: "commander", Commander: "Rakdos", OwnerID: 2}
 	err := repo.Update(1, updatedDeck)
 	assert.NoError(t, err)
 
@@ -114,6 +116,7 @@ func TestPostgresRepo_Update(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "Updated Deck", found.Name)
 	assert.Equal(t, "BR", found.Color)
+	assert.Equal(t, "commander", found.Format)
 	assert.Equal(t, "Rakdos", found.Commander)
 
 	err = repo.Update(999, updatedDeck)
@@ -124,7 +127,7 @@ func TestPostgresRepo_Update(t *testing.T) {
 func TestPostgresRepo_Delete(t *testing.T) {
 	repo := setupPostgresRepo(t)
 
-	deck := &deckEntity.Deck{Name: "Test Deck", Color: "WUBRG", Commander: "Atraxa", OwnerID: 1}
+	deck := &deckEntity.Deck{Name: "Test Deck", Color: "WUBRG", Format: "commander", Commander: "Atraxa", OwnerID: 1}
 	require.NoError(t, repo.Create(deck))
 
 	found, err := repo.GetByID(1)

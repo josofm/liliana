@@ -21,6 +21,7 @@ func TestService_Create(t *testing.T) {
 	deck := &deckEntity.Deck{
 		Name:      "Test Deck",
 		Color:     "WUBRG",
+		Format:    "commander",
 		Commander: "Atraxa",
 		OwnerID:   1,
 	}
@@ -35,8 +36,8 @@ func TestService_GetAll(t *testing.T) {
 	service := NewService(repo)
 
 	// Create test decks
-	deck1 := &deckEntity.Deck{Name: "Deck 1", Color: "WU", Commander: "Azorius", OwnerID: 1}
-	deck2 := &deckEntity.Deck{Name: "Deck 2", Color: "BR", Commander: "Rakdos", OwnerID: 2}
+	deck1 := &deckEntity.Deck{Name: "Deck 1", Color: "WU", Format: "commander", Commander: "Azorius", OwnerID: 1}
+	deck2 := &deckEntity.Deck{Name: "Deck 2", Color: "BR", Format: "commander", Commander: "Rakdos", OwnerID: 2}
 
 	service.Create(deck1)
 	service.Create(deck2)
@@ -50,7 +51,7 @@ func TestService_GetByID(t *testing.T) {
 	repo := deckRepo.NewInMemoryRepo()
 	service := NewService(repo)
 
-	deck := &deckEntity.Deck{Name: "Test Deck", Color: "WUBRG", Commander: "Atraxa", OwnerID: 1}
+	deck := &deckEntity.Deck{Name: "Test Deck", Color: "WUBRG", Format: "commander", Commander: "Atraxa", OwnerID: 1}
 	service.Create(deck)
 
 	// Test successful retrieval
@@ -58,6 +59,7 @@ func TestService_GetByID(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, deck.Name, found.Name)
 	assert.Equal(t, deck.Color, found.Color)
+	assert.Equal(t, deck.Format, found.Format)
 	assert.Equal(t, deck.Commander, found.Commander)
 
 	// Test not found
@@ -71,11 +73,11 @@ func TestService_Update(t *testing.T) {
 	service := NewService(repo)
 
 	// Create deck
-	deck := &deckEntity.Deck{Name: "Original Deck", Color: "WU", Commander: "Azorius", OwnerID: 1}
+	deck := &deckEntity.Deck{Name: "Original Deck", Color: "WU", Format: "commander", Commander: "Azorius", OwnerID: 1}
 	service.Create(deck)
 
 	// Update deck
-	updatedDeck := &deckEntity.Deck{Name: "Updated Deck", Color: "BR", Commander: "Rakdos", OwnerID: 2}
+	updatedDeck := &deckEntity.Deck{Name: "Updated Deck", Color: "BR", Format: "commander", Commander: "Rakdos", OwnerID: 2}
 	err := service.Update(1, updatedDeck)
 	assert.NoError(t, err)
 
@@ -84,6 +86,7 @@ func TestService_Update(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, "Updated Deck", found.Name)
 	assert.Equal(t, "BR", found.Color)
+	assert.Equal(t, "commander", found.Format)
 	assert.Equal(t, "Rakdos", found.Commander)
 }
 
@@ -92,7 +95,7 @@ func TestService_Delete(t *testing.T) {
 	service := NewService(repo)
 
 	// Create deck
-	deck := &deckEntity.Deck{Name: "Test Deck", Color: "WUBRG", Commander: "Atraxa", OwnerID: 1}
+	deck := &deckEntity.Deck{Name: "Test Deck", Color: "WUBRG", Format: "commander", Commander: "Atraxa", OwnerID: 1}
 	service.Create(deck)
 
 	// Verify deck exists
