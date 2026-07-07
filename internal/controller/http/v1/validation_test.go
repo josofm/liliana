@@ -130,6 +130,7 @@ func TestDeckHandler_Validation(t *testing.T) {
 			deckRequest: v1.DeckRequest{
 				Name:      "My Commander Deck",
 				Color:     "WUBRG",
+				Format:    "commander",
 				Commander: "Atraxa, Praetors' Voice",
 				OwnerID:   1,
 			},
@@ -141,6 +142,7 @@ func TestDeckHandler_Validation(t *testing.T) {
 			deckRequest: v1.DeckRequest{
 				Name:      "My Commander Deck",
 				Color:     "INVALID",
+				Format:    "commander",
 				Commander: "Atraxa, Praetors' Voice",
 				OwnerID:   1,
 			},
@@ -152,6 +154,7 @@ func TestDeckHandler_Validation(t *testing.T) {
 			deckRequest: v1.DeckRequest{
 				Name:      "White Deck",
 				Color:     "W",
+				Format:    "commander",
 				Commander: "Sram, Senior Edificer",
 				OwnerID:   1,
 			},
@@ -163,6 +166,7 @@ func TestDeckHandler_Validation(t *testing.T) {
 			deckRequest: v1.DeckRequest{
 				Name:      "My Commander Deck",
 				Color:     "WUBRG",
+				Format:    "commander",
 				Commander: "Atraxa, Praetors' Voice",
 				OwnerID:   0,
 			},
@@ -174,6 +178,7 @@ func TestDeckHandler_Validation(t *testing.T) {
 			deckRequest: v1.DeckRequest{
 				Name:       "My Commander Deck",
 				Color:      "WUBRG",
+				Format:     "commander",
 				Commander:  "Atraxa, Praetors' Voice",
 				OwnerID:    1,
 				SourceLink: "https://archidekt.com/decks/123456",
@@ -186,6 +191,7 @@ func TestDeckHandler_Validation(t *testing.T) {
 			deckRequest: v1.DeckRequest{
 				Name:       "My Commander Deck",
 				Color:      "WUBRG",
+				Format:     "commander",
 				Commander:  "Atraxa, Praetors' Voice",
 				OwnerID:    1,
 				SourceLink: "not-a-url",
@@ -216,6 +222,7 @@ func TestDeckHandler_Validation(t *testing.T) {
 				assert.NotZero(t, response.ID)
 				assert.Equal(t, tt.deckRequest.Name, response.Name)
 				assert.Equal(t, tt.deckRequest.Color, response.Color)
+				assert.Equal(t, tt.deckRequest.Format, response.Format)
 				assert.Equal(t, tt.deckRequest.Commander, response.Commander)
 			}
 		})

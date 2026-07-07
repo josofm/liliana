@@ -67,6 +67,7 @@ func TestApp_DeckCRUD(t *testing.T) {
 	deckData := map[string]interface{}{
 		"name":        "Integration Test Deck",
 		"color":       "WUBRG",
+		"format":      "commander",
 		"commander":   "Atraxa, Praetors' Voice",
 		"owner_id":    1,
 		"source_link": "https://archidekt.com/decks/test",

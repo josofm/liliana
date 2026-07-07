@@ -209,6 +209,7 @@ func TestRouter_DeckEndpoints(t *testing.T) {
 	deckData := map[string]interface{}{
 		"name":        "Test Deck",
 		"color":       "WUBRG",
+		"format":      "commander",
 		"commander":   "Atraxa, Praetors' Voice",
 		"owner_id":    1,
 		"source_link": "https://archidekt.com/decks/123456",
@@ -247,6 +248,7 @@ func TestRouter_DeckEndpoints(t *testing.T) {
 	updateData := map[string]interface{}{
 		"name":        "Updated Deck",
 		"color":       "BR",
+		"format":      "commander",
 		"commander":   "Rakdos, Lord of Riots",
 		"owner_id":    2,
 		"source_link": "https://archidekt.com/decks/654321",

@@ -15,7 +15,8 @@ import (
 type DeckRequest struct {
 	Name       string `json:"name" validate:"required,min=1,max=100"`
 	Color      string `json:"color" validate:"required,oneof=W U B R G WU WB WR WG UB UR UG BR BG RG WUB WUR WUG WBR WBG WRG UBR UBG URG BRG WUBR WUBG WURG WBRG UBRG WUBRG"`
-	Commander  string `json:"commander" validate:"required,min=1,max=100"`
+	Format     string `json:"format" validate:"required,oneof=commander standard modern pioneer legacy vintage pauper brawl oathbreaker limited"`
+	Commander  string `json:"commander" validate:"required_if=Format commander,omitempty,min=1,max=100"`
 	OwnerID    int64  `json:"owner_id" validate:"required,gt=0"`
 	SourceLink string `json:"source_link" validate:"omitempty,url"`
 }
@@ -57,6 +58,7 @@ func (h *DeckHandler) create(c *gin.Context) {
 	deck := deckEntity.Deck{
 		Name:       request.Name,
 		Color:      request.Color,
+		Format:     request.Format,
 		Commander:  request.Commander,
 		OwnerID:    request.OwnerID,
 		SourceLink: request.SourceLink,
@@ -104,6 +106,7 @@ func (h *DeckHandler) update(c *gin.Context) {
 	deck := deckEntity.Deck{
 		Name:       request.Name,
 		Color:      request.Color,
+		Format:     request.Format,
 		Commander:  request.Commander,
 		OwnerID:    request.OwnerID,
 		SourceLink: request.SourceLink,
