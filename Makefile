@@ -32,6 +32,10 @@ stop-compose:
 migrate:
 	go run ./cmd/migrate up
 
+.PHONY: compose-migrate
+compose-migrate:
+	docker compose -f docker-compose.yaml run --rm migrate
+
 .PHONY: integration
 integration:
 	go run ./hack/integration

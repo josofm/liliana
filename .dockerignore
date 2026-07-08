@@ -1,0 +1,12 @@
+.env
+.env.*
+!.env.example
+.git
+.github
+.agents
+.codex
+tmp
+dist
+build
+coverage
+node_modules

@@ -14,9 +14,26 @@ services:
       JWT_SECRET_KEY: test-secret
       JWT_ACCESS_EXPIRY: 15m
       JWT_REFRESH_EXPIRY: 168h
+      CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
       AUTO_MIGRATE: "false"
       DATABASE_URL: postgres://liliana:liliana@postgres:5432/liliana_test?sslmode=disable
       LILIANA_POSTGRES_TEST_DSN: postgres://liliana:liliana@postgres:5432/liliana_test?sslmode=disable
+    ports:
+      - "${HTTP_PORT:-8080}:8080"
+
+  migrate:
+    image: liliana:latest
+    build:
+      context: .
+      target: devimage
+    depends_on:
+      postgres:
+        condition: service_healthy
+    environment:
+      DATABASE_URL: postgres://liliana:liliana@postgres:5432/liliana_test?sslmode=disable
+    command: ["go", "run", "./cmd/migrate", "up"]
+    profiles:
+      - tools
 
   postgres:
     image: postgres:16-alpine

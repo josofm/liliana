@@ -10,7 +10,7 @@ import (
 const (
 	_defaultReadTimeout     = 5 * time.Second
 	_defaultWriteTimeout    = 5 * time.Second
-	_defaultAddr            = ":8080"
+	_defaultAddr            = "0.0.0.0:8080"
 	_defaultShutdownTimeout = 3 * time.Second
 )
 
@@ -26,8 +26,10 @@ func New(handler http.Handler, port string) *Server {
 	addr := _defaultAddr
 	if port != "" {
 		addr = port
-		if !strings.HasPrefix(addr, ":") {
-			addr = ":" + addr
+		if strings.HasPrefix(addr, ":") {
+			addr = "0.0.0.0" + addr
+		} else if !strings.Contains(addr, ":") {
+			addr = "0.0.0.0:" + addr
 		}
 	}
 

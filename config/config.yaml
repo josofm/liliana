@@ -5,13 +5,14 @@ app:
 
 http:
   port: '8080'
+  cors_allowed_origins: ''
 
 logger:
   log_level: 'debug'
   rollbar_env: 'liliana'
 
 jwt:
-  secret_key: 'dev-secret-change-me'
+  secret_key: ''
   access_expiry: '15m'
   refresh_expiry: '168h'  # 7 dias
 
