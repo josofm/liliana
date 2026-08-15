@@ -23,7 +23,8 @@ type AppConfig struct {
 }
 
 type HTTPConfig struct {
-	Port string `yaml:"port" env:"HTTP_PORT"`
+	Port               string `yaml:"port" env:"HTTP_PORT"`
+	CORSAllowedOrigins string `yaml:"cors_allowed_origins" env:"CORS_ALLOWED_ORIGINS"`
 }
 
 type LogConfig struct {
@@ -95,15 +96,11 @@ func configPath() (string, bool) {
 }
 
 func (c *Config) Validate() error {
-	if c.App.Environment != "production" {
-		return nil
-	}
-
-	if c.DB.URL == "" {
+	if c.App.Environment == "production" && c.DB.URL == "" {
 		return fmt.Errorf("DATABASE_URL is required in production")
 	}
 	if c.JWT.SecretKey == "" || c.JWT.SecretKey == "dev-secret-change-me" || c.JWT.SecretKey == "your-super-secret-jwt-key-change-in-production" {
-		return fmt.Errorf("JWT_SECRET_KEY must be set to a production secret")
+		return fmt.Errorf("JWT_SECRET_KEY must be set to a safe value")
 	}
 
 	return nil

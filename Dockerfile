@@ -38,6 +38,6 @@ COPY --from=builder /app/liliana /liliana
 COPY --from=builder /app/migrate /migrate
 COPY --from=builder /app/migrations /migrations
 
-EXPOSE 10000
+EXPOSE 8080
 
 ENTRYPOINT ["/liliana"]

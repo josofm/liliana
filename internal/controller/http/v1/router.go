@@ -2,6 +2,7 @@ package v1
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	"github.com/josofm/liliana/config"
@@ -24,6 +25,7 @@ func NewRouter(handler *gin.Engine, l logger.Interface, userRepo userRepo.Reposi
 	// Options
 	handler.Use(gin.Logger())
 	handler.Use(gin.Recovery())
+	handler.Use(corsMiddleware(cfg.HTTP.CORSAllowedOrigins))
 
 	// Health check
 	handler.GET("/healthz", func(c *gin.Context) { c.Status(http.StatusOK) })
@@ -65,6 +67,62 @@ func NewRouter(handler *gin.Engine, l logger.Interface, userRepo userRepo.Reposi
 		// Deck management (protegido)
 		setupDeckRoutes(protected, deckRepo)
 	}
+}
+
+func corsMiddleware(allowedOriginsConfig string) gin.HandlerFunc {
+	allowedOrigins := splitCSV(allowedOriginsConfig)
+
+	return func(c *gin.Context) {
+		origin := c.GetHeader("Origin")
+		if origin != "" && isAllowedOrigin(origin, allowedOrigins) {
+			if contains(allowedOrigins, "*") {
+				c.Header("Access-Control-Allow-Origin", "*")
+			} else {
+				c.Header("Access-Control-Allow-Origin", origin)
+				c.Header("Vary", "Origin")
+			}
+			c.Header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
+			c.Header("Access-Control-Allow-Headers", "Authorization,Content-Type")
+		}
+
+		if c.Request.Method == http.MethodOptions {
+			c.AbortWithStatus(http.StatusNoContent)
+			return
+		}
+
+		c.Next()
+	}
+}
+
+func splitCSV(value string) []string {
+	if value == "" {
+		return nil
+	}
+
+	parts := strings.Split(value, ",")
+	items := make([]string, 0, len(parts))
+	for _, part := range parts {
+		item := strings.TrimSpace(part)
+		if item != "" {
+			items = append(items, item)
+		}
+	}
+
+	return items
+}
+
+func isAllowedOrigin(origin string, allowedOrigins []string) bool {
+	return contains(allowedOrigins, "*") || contains(allowedOrigins, origin)
+}
+
+func contains(items []string, want string) bool {
+	for _, item := range items {
+		if item == want {
+			return true
+		}
+	}
+
+	return false
 }
 
 // setupUserRoutes configura as rotas de usuário

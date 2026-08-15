@@ -15,6 +15,7 @@ func TestNewConfig_EnvOverrides(t *testing.T) {
 	t.Setenv("JWT_SECRET_KEY", "env-secret")
 	t.Setenv("DATABASE_URL", "postgres://example")
 	t.Setenv("AUTO_MIGRATE", "true")
+	t.Setenv("CORS_ALLOWED_ORIGINS", "http://localhost:5173")
 
 	cfg, err := NewConfig()
 	require.NoError(t, err)
@@ -25,12 +26,14 @@ func TestNewConfig_EnvOverrides(t *testing.T) {
 	assert.Equal(t, "env-secret", cfg.JWT.SecretKey)
 	assert.Equal(t, "postgres://example", cfg.DB.URL)
 	assert.True(t, cfg.DB.AutoMigrate)
+	assert.Equal(t, "http://localhost:5173", cfg.HTTP.CORSAllowedOrigins)
 }
 
 func TestNewConfig_RenderPortFallback(t *testing.T) {
 	t.Setenv("APP_ENV", "test")
 	t.Setenv("HTTP_PORT", "")
 	t.Setenv("PORT", "10000")
+	t.Setenv("JWT_SECRET_KEY", "test-secret")
 
 	cfg, err := NewConfig()
 	require.NoError(t, err)
@@ -42,6 +45,7 @@ func TestNewConfig_HTTPPortOverridesRenderPort(t *testing.T) {
 	t.Setenv("APP_ENV", "test")
 	t.Setenv("HTTP_PORT", "9090")
 	t.Setenv("PORT", "10000")
+	t.Setenv("JWT_SECRET_KEY", "test-secret")
 
 	cfg, err := NewConfig()
 	require.NoError(t, err)
