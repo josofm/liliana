@@ -13,10 +13,10 @@ import (
 
 // DeckRequest represents the incoming deck data for validation
 type DeckRequest struct {
-	Name       string `json:"name" validate:"required,min=1,max=100"`
-	Color      string `json:"color" validate:"required,oneof=W U B R G WU WB WR WG UB UR UG BR BG RG WUB WUR WUG WBR WBG WRG UBR UBG URG BRG WUBR WUBG WURG WBRG UBRG WUBRG"`
-	Format     string `json:"format" validate:"required,oneof=commander standard modern pioneer legacy vintage pauper brawl oathbreaker limited"`
-	Commander  string `json:"commander" validate:"required_if=Format commander,omitempty,min=1,max=100"`
+	Name       string `json:"name"`
+	Color      string `json:"color"`
+	Format     string `json:"format"`
+	Commander  string `json:"commander"`
 	OwnerID    int64  `json:"owner_id" validate:"required,gt=0"`
 	SourceLink string `json:"source_link" validate:"omitempty,url"`
 }
@@ -47,8 +47,6 @@ func (h *DeckHandler) create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	// Validate request
 	if validationErrors := h.validator.ValidateAndGetErrors(&request); validationErrors != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"errors": validationErrors})
 		return
@@ -62,6 +60,14 @@ func (h *DeckHandler) create(c *gin.Context) {
 		Commander:  request.Commander,
 		OwnerID:    request.OwnerID,
 		SourceLink: request.SourceLink,
+	}
+	if err := h.service.Prepare(&deck); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+	if validationErrors := h.validator.ValidateAndGetErrors(&deck); validationErrors != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"errors": validationErrors})
+		return
 	}
 
 	err := h.service.Create(&deck)
@@ -95,8 +101,6 @@ func (h *DeckHandler) update(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 		return
 	}
-
-	// Validate request
 	if validationErrors := h.validator.ValidateAndGetErrors(&request); validationErrors != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"errors": validationErrors})
 		return
@@ -110,6 +114,14 @@ func (h *DeckHandler) update(c *gin.Context) {
 		Commander:  request.Commander,
 		OwnerID:    request.OwnerID,
 		SourceLink: request.SourceLink,
+	}
+	if err := h.service.Prepare(&deck); err != nil {
+		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
+		return
+	}
+	if validationErrors := h.validator.ValidateAndGetErrors(&deck); validationErrors != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"errors": validationErrors})
+		return
 	}
 
 	err := h.service.Update(id, &deck)

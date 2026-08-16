@@ -2,6 +2,7 @@ package deck
 
 import (
 	"database/sql"
+	"encoding/json"
 	"errors"
 
 	deckEntity "github.com/josofm/liliana/internal/entity/deck"
@@ -16,9 +17,13 @@ func NewPostgresRepo(db *sql.DB) Repository {
 }
 
 func (r *postgresRepo) Create(d *deckEntity.Deck) error {
+	cards, err := json.Marshal(d.Cards)
+	if err != nil {
+		return err
+	}
 	const query = `
-		INSERT INTO decks (name, color, format, commander, owner_id, source_link)
-		VALUES ($1, $2, $3, $4, $5, $6)
+		INSERT INTO decks (name, color, format, commander, owner_id, source_link, cards)
+		VALUES ($1, $2, $3, $4, $5, $6, $7)
 		RETURNING id
 	`
 
@@ -30,12 +35,13 @@ func (r *postgresRepo) Create(d *deckEntity.Deck) error {
 		d.Commander,
 		d.OwnerID,
 		d.SourceLink,
+		cards,
 	).Scan(&d.ID)
 }
 
 func (r *postgresRepo) GetAll() ([]*deckEntity.Deck, error) {
 	const query = `
-		SELECT id, name, color, format, commander, owner_id, source_link
+		SELECT id, name, color, format, commander, owner_id, source_link, cards
 		FROM decks
 		ORDER BY id
 	`
@@ -49,7 +55,11 @@ func (r *postgresRepo) GetAll() ([]*deckEntity.Deck, error) {
 	decks := make([]*deckEntity.Deck, 0)
 	for rows.Next() {
 		d := &deckEntity.Deck{}
-		if err := rows.Scan(&d.ID, &d.Name, &d.Color, &d.Format, &d.Commander, &d.OwnerID, &d.SourceLink); err != nil {
+		var cards []byte
+		if err := rows.Scan(&d.ID, &d.Name, &d.Color, &d.Format, &d.Commander, &d.OwnerID, &d.SourceLink, &cards); err != nil {
+			return nil, err
+		}
+		if err := json.Unmarshal(cards, &d.Cards); err != nil {
 			return nil, err
 		}
 		decks = append(decks, d)
@@ -64,17 +74,21 @@ func (r *postgresRepo) GetAll() ([]*deckEntity.Deck, error) {
 
 func (r *postgresRepo) GetByID(id int64) (*deckEntity.Deck, error) {
 	const query = `
-		SELECT id, name, color, format, commander, owner_id, source_link
+		SELECT id, name, color, format, commander, owner_id, source_link, cards
 		FROM decks
 		WHERE id = $1
 	`
 
 	d := &deckEntity.Deck{}
-	err := r.db.QueryRow(query, id).Scan(&d.ID, &d.Name, &d.Color, &d.Format, &d.Commander, &d.OwnerID, &d.SourceLink)
+	var cards []byte
+	err := r.db.QueryRow(query, id).Scan(&d.ID, &d.Name, &d.Color, &d.Format, &d.Commander, &d.OwnerID, &d.SourceLink, &cards)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, errors.New("deck not found")
 	}
 	if err != nil {
+		return nil, err
+	}
+	if err := json.Unmarshal(cards, &d.Cards); err != nil {
 		return nil, err
 	}
 
@@ -82,13 +96,17 @@ func (r *postgresRepo) GetByID(id int64) (*deckEntity.Deck, error) {
 }
 
 func (r *postgresRepo) Update(id int64, d *deckEntity.Deck) error {
+	cards, err := json.Marshal(d.Cards)
+	if err != nil {
+		return err
+	}
 	const query = `
 		UPDATE decks
-		SET name = $1, color = $2, format = $3, commander = $4, owner_id = $5, source_link = $6
-		WHERE id = $7
+		SET name = $1, color = $2, format = $3, commander = $4, owner_id = $5, source_link = $6, cards = $7
+		WHERE id = $8
 	`
 
-	result, err := r.db.Exec(query, d.Name, d.Color, d.Format, d.Commander, d.OwnerID, d.SourceLink, id)
+	result, err := r.db.Exec(query, d.Name, d.Color, d.Format, d.Commander, d.OwnerID, d.SourceLink, cards, id)
 	if err != nil {
 		return err
 	}

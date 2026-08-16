@@ -6,11 +6,39 @@ import (
 )
 
 type Service struct {
-	repo deckRepo.Repository
+	repo     deckRepo.Repository
+	importer SourceImporter
 }
 
 func NewService(repo deckRepo.Repository) *Service {
-	return &Service{repo: repo}
+	return &Service{repo: repo, importer: NewArchidektImporter()}
+}
+
+func NewServiceWithImporter(repo deckRepo.Repository, importer SourceImporter) *Service {
+	return &Service{repo: repo, importer: importer}
+}
+
+func (s *Service) Prepare(d *deckEntity.Deck) error {
+	if d.SourceLink == "" {
+		return nil
+	}
+	imported, err := s.importer.Import(d.SourceLink)
+	if err != nil {
+		// Keep backwards compatibility for fully specified manual decks. The
+		// source is enrichment in this case; source-only requests still fail.
+		if hasRequiredMetadata(d) {
+			return nil
+		}
+		return err
+	}
+	imported.OwnerID = d.OwnerID
+	imported.SourceLink = d.SourceLink
+	*d = *imported
+	return nil
+}
+
+func hasRequiredMetadata(d *deckEntity.Deck) bool {
+	return d.Name != "" && d.Color != "" && d.Format != "" && (d.Format != "commander" || d.Commander != "")
 }
 
 func (s *Service) Create(deck *deckEntity.Deck) error {

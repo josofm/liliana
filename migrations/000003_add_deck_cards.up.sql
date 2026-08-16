@@ -1,0 +1,2 @@
+ALTER TABLE decks
+	ADD COLUMN cards JSONB NOT NULL DEFAULT '[]'::jsonb;
