@@ -1,5 +1,8 @@
 IMG = liliana
 VERSION ?= latest
+GHCR_REGISTRY ?= ghcr.io
+GHCR_OWNER ?= josofm
+GHCR_IMAGE = $(GHCR_REGISTRY)/$(GHCR_OWNER)/$(IMG)
 wd=$(shell cd)
 appvol=$(wd):/app
 
@@ -10,7 +13,12 @@ image-dev:
 
 .PHONY: image-prod
 image-prod:
-	docker build --target production -t liliana:latest .
+	docker build --target production -t $(IMG):$(VERSION) .
+
+.PHONY: publish
+publish: image-prod ##@publish Build and publish the production image to GHCR.
+	docker tag $(IMG):$(VERSION) $(GHCR_IMAGE):$(VERSION)
+	docker push $(GHCR_IMAGE):$(VERSION)
 
 .PHONY: run
 run: image-dev ##@run Run application on docker compose.
