@@ -43,7 +43,7 @@ func setupPostgresRepo(t *testing.T) Repository {
 func truncatePostgresDecks(t *testing.T, db *sql.DB) {
 	t.Helper()
 
-	_, err := db.Exec(`TRUNCATE TABLE decks RESTART IDENTITY`)
+	_, err := db.Exec(`TRUNCATE TABLE deck_cards, decks, cards RESTART IDENTITY`)
 	require.NoError(t, err)
 }
 
@@ -62,11 +62,21 @@ func TestPostgresRepo_Create(t *testing.T) {
 		Commander:  "Atraxa, Praetors' Voice",
 		OwnerID:    1,
 		SourceLink: "https://archidekt.com/decks/123456",
+		Cards: []deckEntity.Card{{
+			OracleID: "1b8d0a2b-79ab-4a2f-9d2f-0e6d5dc7c461", Name: "Aqueous Form", Quantity: 2,
+			ManaCost: "{U}", TypeLine: "Enchantment — Aura", ColorIdentity: []string{"U"},
+		}},
 	}
 
 	err := repo.Create(deck)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), deck.ID)
+	found, err := repo.GetByID(deck.ID)
+	require.NoError(t, err)
+	require.Len(t, found.Cards, 1)
+	assert.Equal(t, "Aqueous Form", found.Cards[0].Name)
+	assert.Equal(t, 2, found.Cards[0].Quantity)
+	assert.Equal(t, "{U}", found.Cards[0].ManaCost)
 }
 
 func TestPostgresRepo_GetAll(t *testing.T) {
@@ -140,4 +150,26 @@ func TestPostgresRepo_Delete(t *testing.T) {
 	found, err = repo.GetByID(1)
 	assert.Error(t, err)
 	assert.Nil(t, found)
+}
+
+func TestPostgresRepo_SharedCardRelationshipAndCascade(t *testing.T) {
+	repo := setupPostgresRepo(t)
+	postgres := repo.(*postgresRepo)
+	card := deckEntity.Card{OracleID: "7a8a2d6f-8e24-4d87-8f42-42d4d7e535f5", Name: "Shared Card", Quantity: 1}
+	first := &deckEntity.Deck{Name: "First", Color: "U", Format: "commander", Commander: "First Commander", OwnerID: 1, Cards: []deckEntity.Card{card}}
+	second := &deckEntity.Deck{Name: "Second", Color: "U", Format: "commander", Commander: "Second Commander", OwnerID: 1, Cards: []deckEntity.Card{card}}
+	require.NoError(t, repo.Create(first))
+	require.NoError(t, repo.Create(second))
+
+	var cardCount, relationshipCount int
+	require.NoError(t, postgres.db.QueryRow(`SELECT COUNT(*) FROM cards WHERE oracle_id=$1`, card.OracleID).Scan(&cardCount))
+	require.NoError(t, postgres.db.QueryRow(`SELECT COUNT(*) FROM deck_cards WHERE oracle_id=$1`, card.OracleID).Scan(&relationshipCount))
+	assert.Equal(t, 1, cardCount)
+	assert.Equal(t, 2, relationshipCount)
+
+	require.NoError(t, repo.Delete(first.ID))
+	require.NoError(t, postgres.db.QueryRow(`SELECT COUNT(*) FROM deck_cards WHERE oracle_id=$1`, card.OracleID).Scan(&relationshipCount))
+	require.NoError(t, postgres.db.QueryRow(`SELECT COUNT(*) FROM cards WHERE oracle_id=$1`, card.OracleID).Scan(&cardCount))
+	assert.Equal(t, 1, relationshipCount)
+	assert.Equal(t, 1, cardCount)
 }

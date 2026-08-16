@@ -1,39 +1,62 @@
 package service
 
 import (
+	"bufio"
+	"errors"
+	"fmt"
+	"strconv"
+	"strings"
+
 	deckEntity "github.com/josofm/liliana/internal/entity/deck"
 	deckRepo "github.com/josofm/liliana/internal/repository/deck"
 )
 
 type Service struct {
-	repo     deckRepo.Repository
-	importer SourceImporter
+	repo      deckRepo.Repository
+	importer  SourceImporter
+	validator CardValidator
 }
 
 func NewService(repo deckRepo.Repository) *Service {
-	return &Service{repo: repo, importer: NewArchidektImporter()}
+	return &Service{repo: repo, importer: NewArchidektImporter(), validator: NewScryfallValidator()}
 }
 
 func NewServiceWithImporter(repo deckRepo.Repository, importer SourceImporter) *Service {
-	return &Service{repo: repo, importer: importer}
+	return &Service{repo: repo, importer: importer, validator: NewScryfallValidator()}
+}
+
+func NewServiceWithDependencies(repo deckRepo.Repository, importer SourceImporter, validator CardValidator) *Service {
+	return &Service{repo: repo, importer: importer, validator: validator}
 }
 
 func (s *Service) Prepare(d *deckEntity.Deck) error {
 	if d.SourceLink == "" {
-		return nil
+		return s.validateCards(d)
 	}
 	imported, err := s.importer.Import(d.SourceLink)
 	if err != nil {
 		// Keep backwards compatibility for fully specified manual decks. The
 		// source is enrichment in this case; source-only requests still fail.
 		if hasRequiredMetadata(d) {
-			return nil
+			return s.validateCards(d)
 		}
 		return err
 	}
 	imported.OwnerID = d.OwnerID
 	imported.SourceLink = d.SourceLink
 	*d = *imported
+	return nil
+}
+
+func (s *Service) validateCards(d *deckEntity.Deck) error {
+	if len(d.Cards) == 0 {
+		return nil
+	}
+	cards, err := s.validator.Validate(d.Cards)
+	if err != nil {
+		return err
+	}
+	d.Cards = cards
 	return nil
 }
 
@@ -70,4 +93,70 @@ func (s *Service) Update(id int64, d *deckEntity.Deck) error {
 
 func (s *Service) Delete(id int64) error {
 	return s.repo.Delete(id)
+}
+
+func ParseCardList(value string) ([]deckEntity.Card, error) {
+	cards := make([]deckEntity.Card, 0)
+	positions := make(map[string]int)
+	scanner := bufio.NewScanner(strings.NewReader(value))
+	lineNumber := 0
+	for scanner.Scan() {
+		lineNumber++
+		line := strings.TrimSpace(scanner.Text())
+		if line == "" {
+			continue
+		}
+		fields := strings.Fields(line)
+		if len(fields) < 2 {
+			return nil, fmt.Errorf("invalid card at line %d: expected '<quantity> <card name>'", lineNumber)
+		}
+		quantityText := fields[0]
+		name := strings.TrimSpace(strings.TrimPrefix(line, quantityText))
+		quantity, err := strconv.Atoi(quantityText)
+		if err != nil || quantity <= 0 || name == "" {
+			return nil, fmt.Errorf("invalid card at line %d: expected '<quantity> <card name>'", lineNumber)
+		}
+		key := strings.ToLower(name)
+		if position, exists := positions[key]; exists {
+			cards[position].Quantity += quantity
+			continue
+		}
+		positions[key] = len(cards)
+		cards = append(cards, deckEntity.Card{Name: name, Quantity: quantity})
+	}
+	if err := scanner.Err(); err != nil {
+		return nil, fmt.Errorf("read card list: %w", err)
+	}
+	return cards, nil
+}
+
+func (s *Service) AddCards(id int64, cards []deckEntity.Card) (*deckEntity.Deck, error) {
+	if len(cards) == 0 {
+		return nil, errors.New("card list cannot be empty")
+	}
+	cards, err := s.validator.Validate(cards)
+	if err != nil {
+		return nil, err
+	}
+	d, err := s.repo.GetByID(id)
+	if err != nil {
+		return nil, err
+	}
+	positions := make(map[string]int, len(d.Cards))
+	for index, card := range d.Cards {
+		positions[strings.ToLower(card.Name)] = index
+	}
+	for _, card := range cards {
+		key := strings.ToLower(card.Name)
+		if position, exists := positions[key]; exists {
+			d.Cards[position].Quantity += card.Quantity
+			continue
+		}
+		positions[key] = len(d.Cards)
+		d.Cards = append(d.Cards, card)
+	}
+	if err := s.repo.Update(id, d); err != nil {
+		return nil, err
+	}
+	return d, nil
 }

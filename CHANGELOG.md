@@ -6,7 +6,10 @@
 
 - Importação automática de decks públicos do Archidekt pelo `source_link`.
 - Extração de nome, formato, cores, comandante e cartas.
-- Persistência das cartas em JSONB, incluindo quantidade e Scryfall ID.
+- Catálogo normalizado de cartas e relacionamento com decks por Oracle ID.
+- Validação e enriquecimento de listas manuais pelo Scryfall.
+- Cadastro manual de cartas por lista no formato `quantidade nome`.
+- Endpoint para adicionar cartas a um deck existente.
 - Testes unitários e integração com um deck real do Archidekt.
 - Comando `make publish` para publicar a imagem de produção no GHCR.
 

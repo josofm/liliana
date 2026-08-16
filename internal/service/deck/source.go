@@ -57,7 +57,11 @@ type archidektDeckCard struct {
 		OracleCard struct {
 			Name          string   `json:"name"`
 			UID           string   `json:"uid"`
+			ManaCost      string   `json:"manaCost"`
 			ColorIdentity []string `json:"colorIdentity"`
+			SuperTypes    []string `json:"superTypes"`
+			Types         []string `json:"types"`
+			SubTypes      []string `json:"subTypes"`
 		} `json:"oracleCard"`
 	} `json:"card"`
 }
@@ -106,7 +110,12 @@ func (i *ArchidektImporter) Import(sourceLink string) (*deckEntity.Deck, error) 
 		if !cardIsIncluded(sourceCard.Categories, includedCategories) || sourceCard.Quantity <= 0 || sourceCard.Card.OracleCard.Name == "" {
 			continue
 		}
-		card := deckEntity.Card{Name: sourceCard.Card.OracleCard.Name, Quantity: sourceCard.Quantity, ScryfallID: sourceCard.Card.OracleCard.UID}
+		card := deckEntity.Card{
+			Name: sourceCard.Card.OracleCard.Name, Quantity: sourceCard.Quantity,
+			OracleID: sourceCard.Card.OracleCard.UID, ManaCost: sourceCard.Card.OracleCard.ManaCost,
+			TypeLine:      archidektTypeLine(sourceCard.Card.OracleCard.SuperTypes, sourceCard.Card.OracleCard.Types, sourceCard.Card.OracleCard.SubTypes),
+			ColorIdentity: sourceCard.Card.OracleCard.ColorIdentity,
+		}
 		cards = append(cards, card)
 		for _, color := range sourceCard.Card.OracleCard.ColorIdentity {
 			colors[color] = true
@@ -116,6 +125,7 @@ func (i *ArchidektImporter) Import(sourceLink string) (*deckEntity.Deck, error) 
 		}
 	}
 
+	cards = mergeCardsByOracleID(cards)
 	sort.Slice(cards, func(a, b int) bool { return cards[a].Name < cards[b].Name })
 	return &deckEntity.Deck{
 		Name:      source.Name,
@@ -124,6 +134,32 @@ func (i *ArchidektImporter) Import(sourceLink string) (*deckEntity.Deck, error) 
 		Commander: strings.Join(commanders, " / "),
 		Cards:     cards,
 	}, nil
+}
+
+func mergeCardsByOracleID(cards []deckEntity.Card) []deckEntity.Card {
+	result := make([]deckEntity.Card, 0, len(cards))
+	positions := make(map[string]int, len(cards))
+	for _, card := range cards {
+		key := card.OracleID
+		if key == "" {
+			key = strings.ToLower(card.Name)
+		}
+		if position, exists := positions[key]; exists {
+			result[position].Quantity += card.Quantity
+			continue
+		}
+		positions[key] = len(result)
+		result = append(result, card)
+	}
+	return result
+}
+
+func archidektTypeLine(superTypes, types, subTypes []string) string {
+	left := strings.Join(append(append([]string{}, superTypes...), types...), " ")
+	if len(subTypes) == 0 {
+		return left
+	}
+	return left + " — " + strings.Join(subTypes, " ")
 }
 
 func cardIsIncluded(categories []string, included map[string]bool) bool {
