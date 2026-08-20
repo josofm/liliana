@@ -153,6 +153,7 @@ func setupDeckRoutes(rg RouterGroup, deckRepo deckRepo.Repository) {
 		group.GET("/", h.getAll)
 		group.GET("/:id", h.getByID)
 		group.PUT("/:id", h.update)
+		group.POST("/:id/cards", h.addCards)
 		group.DELETE("/:id", h.delete)
 	}
 }

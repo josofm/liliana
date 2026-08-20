@@ -13,9 +13,22 @@ import (
 	v1 "github.com/josofm/liliana/internal/controller/http/v1"
 	deckEntity "github.com/josofm/liliana/internal/entity/deck"
 	deckRepo "github.com/josofm/liliana/internal/repository/deck"
+	deckService "github.com/josofm/liliana/internal/service/deck"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
+
+type testCardValidator struct{}
+
+func (testCardValidator) Validate(cards []deckEntity.Card) ([]deckEntity.Card, error) {
+	for index := range cards {
+		if cards[index].OracleID == "" {
+			cards[index].OracleID = "oracle-" + cards[index].Name
+		}
+	}
+	return cards, nil
+}
 
 func setupDeckHandler() *gin.Engine {
 	gin.SetMode(gin.TestMode)
@@ -25,8 +38,17 @@ func setupDeckHandler() *gin.Engine {
 	return router
 }
 
+func setupDeckHandlerWithCardValidation() *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	repo := deckRepo.NewInMemoryRepo()
+	service := deckService.NewServiceWithDependencies(repo, deckService.NewArchidektImporter(), testCardValidator{})
+	v1.NewDeckHandlerWithService(router, service)
+	return router
+}
+
 func TestDeckHandler_Create(t *testing.T) {
-	router := setupDeckHandler()
+	router := setupDeckHandlerWithCardValidation()
 
 	deckRequest := v1.DeckRequest{
 		Name:      "Test Deck",
@@ -86,6 +108,97 @@ func TestDeckHandler_Create_NonCommanderWithoutCommander(t *testing.T) {
 	checkErr(t, err)
 	assert.Equal(t, deckRequest.Format, response.Format)
 	assert.Empty(t, response.Commander)
+}
+
+func TestDeckHandler_CreateManualWithCards(t *testing.T) {
+	router := setupDeckHandlerWithCardValidation()
+	deckRequest := v1.DeckRequest{
+		Name: "Auras", Color: "U", Format: "commander", Commander: "Thassa", OwnerID: 1,
+		Cards: "1 Aqueous Form\n1 Vorrac Battlehorns",
+	}
+	body, err := json.Marshal(deckRequest)
+	checkErr(t, err)
+	req, err := http.NewRequest(http.MethodPost, "/decks/", bytes.NewBuffer(body))
+	checkErr(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+	assert.Equal(t, http.StatusCreated, w.Code)
+
+	var response deckEntity.Deck
+	checkErr(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Len(t, response.Cards, 2)
+	assert.Equal(t, "Aqueous Form", response.Cards[0].Name)
+}
+
+func TestDeckHandler_AddCards(t *testing.T) {
+	router := setupDeckHandlerWithCardValidation()
+	deckRequest := v1.DeckRequest{Name: "Auras", Color: "U", Format: "commander", Commander: "Thassa", OwnerID: 1}
+	body, err := json.Marshal(deckRequest)
+	checkErr(t, err)
+	createRequest, err := http.NewRequest(http.MethodPost, "/decks/", bytes.NewBuffer(body))
+	checkErr(t, err)
+	createRequest.Header.Set("Content-Type", "application/json")
+	createResponse := httptest.NewRecorder()
+	router.ServeHTTP(createResponse, createRequest)
+	assert.Equal(t, http.StatusCreated, createResponse.Code)
+
+	body, err = json.Marshal(v1.DeckCardsRequest{Cards: "1 Aqueous Form\n1 Vorrac Battlehorns"})
+	checkErr(t, err)
+	request, err := http.NewRequest(http.MethodPost, "/decks/1/cards", bytes.NewBuffer(body))
+	checkErr(t, err)
+	request.Header.Set("Content-Type", "application/json")
+	responseRecorder := httptest.NewRecorder()
+	router.ServeHTTP(responseRecorder, request)
+	assert.Equal(t, http.StatusOK, responseRecorder.Code)
+
+	var response deckEntity.Deck
+	checkErr(t, json.Unmarshal(responseRecorder.Body.Bytes(), &response))
+	assert.Len(t, response.Cards, 2)
+}
+
+func TestDeckHandler_CreateManualWithLiveScryfall(t *testing.T) {
+	router := setupDeckHandler()
+	requestBody := v1.DeckRequest{
+		Name: "Validated Auras", Color: "U", Format: "commander", Commander: "Thassa, God of the Sea", OwnerID: 1,
+		Cards: "1 Aqueous Form\n1 Vorrac Battlehorns",
+	}
+	body, err := json.Marshal(requestBody)
+	checkErr(t, err)
+	request, err := http.NewRequest(http.MethodPost, "/decks/", bytes.NewBuffer(body))
+	checkErr(t, err)
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusCreated, recorder.Code, recorder.Body.String())
+
+	var response deckEntity.Deck
+	checkErr(t, json.Unmarshal(recorder.Body.Bytes(), &response))
+	require.Len(t, response.Cards, 2)
+	assert.NotEmpty(t, response.Cards[0].OracleID)
+	assert.Equal(t, "{U}", response.Cards[0].ManaCost)
+}
+
+func TestDeckHandler_CreateFromArchidektWithCards(t *testing.T) {
+	router := setupDeckHandler()
+	requestBody := v1.DeckRequest{OwnerID: 1, SourceLink: "https://archidekt.com/decks/22559444/elves_visions"}
+	body, err := json.Marshal(requestBody)
+	checkErr(t, err)
+	request, err := http.NewRequest(http.MethodPost, "/decks/", bytes.NewBuffer(body))
+	checkErr(t, err)
+	request.Header.Set("Content-Type", "application/json")
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	require.Equal(t, http.StatusCreated, recorder.Code, recorder.Body.String())
+
+	var response deckEntity.Deck
+	checkErr(t, json.Unmarshal(recorder.Body.Bytes(), &response))
+	assert.Equal(t, "Elves visions", response.Name)
+	assert.Equal(t, "Elrond, Master of Healing", response.Commander)
+	assert.NotEmpty(t, response.Cards)
+	for _, card := range response.Cards {
+		assert.NotEmpty(t, card.OracleID)
+	}
 }
 
 func TestDeckHandler_Create_InvalidJSON(t *testing.T) {

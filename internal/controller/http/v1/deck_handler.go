@@ -19,6 +19,11 @@ type DeckRequest struct {
 	Commander  string `json:"commander"`
 	OwnerID    int64  `json:"owner_id" validate:"required,gt=0"`
 	SourceLink string `json:"source_link" validate:"omitempty,url"`
+	Cards      string `json:"cards"`
+}
+
+type DeckCardsRequest struct {
+	Cards string `json:"cards" validate:"required"`
 }
 
 type DeckHandler struct {
@@ -28,6 +33,10 @@ type DeckHandler struct {
 
 func NewDeckHandler(r *gin.Engine, repo deckRepo.Repository) {
 	service := deckService.NewService(repo)
+	NewDeckHandlerWithService(r, service)
+}
+
+func NewDeckHandlerWithService(r *gin.Engine, service *deckService.Service) {
 	validator := validator.New()
 	h := &DeckHandler{service: service, validator: validator}
 
@@ -37,6 +46,7 @@ func NewDeckHandler(r *gin.Engine, repo deckRepo.Repository) {
 		group.GET("/", h.getAll)
 		group.GET("/:id", h.getByID)
 		group.PUT("/:id", h.update)
+		group.POST("/:id/cards", h.addCards)
 		group.DELETE("/:id", h.delete)
 	}
 }
@@ -60,6 +70,14 @@ func (h *DeckHandler) create(c *gin.Context) {
 		Commander:  request.Commander,
 		OwnerID:    request.OwnerID,
 		SourceLink: request.SourceLink,
+	}
+	if request.Cards != "" {
+		cards, err := deckService.ParseCardList(request.Cards)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+			return
+		}
+		deck.Cards = cards
 	}
 	if err := h.service.Prepare(&deck); err != nil {
 		c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
@@ -136,4 +154,36 @@ func (h *DeckHandler) delete(c *gin.Context) {
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
 	h.service.Delete(id)
 	c.Status(http.StatusNoContent)
+}
+
+func (h *DeckHandler) addCards(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid deck id"})
+		return
+	}
+	var request DeckCardsRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	if validationErrors := h.validator.ValidateAndGetErrors(&request); validationErrors != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"errors": validationErrors})
+		return
+	}
+	cards, err := deckService.ParseCardList(request.Cards)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	d, err := h.service.AddCards(id, cards)
+	if err != nil {
+		if err.Error() == "deck not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "deck not found"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, d)
 }
