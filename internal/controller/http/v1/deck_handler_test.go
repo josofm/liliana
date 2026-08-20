@@ -26,7 +26,11 @@ func (testCardValidator) ResolveCommander(name string) (deckEntity.Card, error) 
 	if name == "Atraxa, Praetors' Voice" {
 		colors = []string{"W", "U", "B", "G"}
 	}
-	return deckEntity.Card{Name: name, ColorIdentity: colors}, nil
+	return deckEntity.Card{Name: name, ColorIdentity: colors, ImageURI: "https://example.com/commander.jpg"}, nil
+}
+
+func (testCardValidator) SearchCommanders(string) ([]deckService.CommanderSuggestion, error) {
+	return []deckService.CommanderSuggestion{{Name: "Thassa, God of the Sea", ColorIdentity: []string{"U"}}}, nil
 }
 
 func (testCardValidator) Validate(cards []deckEntity.Card) ([]deckEntity.Card, error) {
@@ -87,6 +91,7 @@ func TestDeckHandler_Create(t *testing.T) {
 	assert.Equal(t, deckRequest.Color, response.Color)
 	assert.Equal(t, deckRequest.Format, response.Format)
 	assert.Equal(t, deckRequest.Commander, response.Commander)
+	assert.Equal(t, "https://example.com/commander.jpg", response.CommanderImageURI)
 	assert.Equal(t, deckRequest.OwnerID, response.OwnerID)
 	assert.Equal(t, int64(1), response.ID)
 }
@@ -121,6 +126,17 @@ func TestDeckHandler_Create_RequiresAuthenticatedUser(t *testing.T) {
 
 	assert.Equal(t, http.StatusUnauthorized, w.Code)
 	assert.JSONEq(t, `{"error":"user not authenticated"}`, w.Body.String())
+}
+
+func TestDeckHandler_SearchCommanders(t *testing.T) {
+	router := setupDeckHandlerWithCardValidation()
+	req, err := http.NewRequest(http.MethodGet, "/decks/commanders?q=thassa", nil)
+	checkErr(t, err)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.JSONEq(t, `[{"name":"Thassa, God of the Sea","color_identity":["U"]}]`, w.Body.String())
 }
 
 func TestDeckHandler_Create_NonCommanderWithoutCommander(t *testing.T) {

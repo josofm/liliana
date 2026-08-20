@@ -4,6 +4,7 @@ CREATE TABLE decks (
 	color TEXT NOT NULL,
 	format TEXT NOT NULL,
 	commander TEXT,
+	commander_image_uri TEXT NOT NULL DEFAULT '',
 	owner_id BIGINT NOT NULL,
 	source_link TEXT NOT NULL DEFAULT ''
 );

@@ -56,12 +56,13 @@ func TestPostgresRepo_Create(t *testing.T) {
 	repo := setupPostgresRepo(t)
 
 	deck := &deckEntity.Deck{
-		Name:       "Test Deck",
-		Color:      "WUBRG",
-		Format:     "commander",
-		Commander:  "Atraxa, Praetors' Voice",
-		OwnerID:    1,
-		SourceLink: "https://archidekt.com/decks/123456",
+		Name:              "Test Deck",
+		Color:             "WUBRG",
+		Format:            "commander",
+		Commander:         "Atraxa, Praetors' Voice",
+		CommanderImageURI: "https://example.com/atraxa.jpg",
+		OwnerID:           1,
+		SourceLink:        "https://archidekt.com/decks/123456",
 		Cards: []deckEntity.Card{{
 			OracleID: "1b8d0a2b-79ab-4a2f-9d2f-0e6d5dc7c461", Name: "Aqueous Form", Quantity: 2,
 			ManaCost: "{U}", TypeLine: "Enchantment — Aura", ColorIdentity: []string{"U"},
@@ -77,6 +78,7 @@ func TestPostgresRepo_Create(t *testing.T) {
 	assert.Equal(t, "Aqueous Form", found.Cards[0].Name)
 	assert.Equal(t, 2, found.Cards[0].Quantity)
 	assert.Equal(t, "{U}", found.Cards[0].ManaCost)
+	assert.Equal(t, deck.CommanderImageURI, found.CommanderImageURI)
 }
 
 func TestPostgresRepo_GetAll(t *testing.T) {

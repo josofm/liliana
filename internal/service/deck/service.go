@@ -44,6 +44,12 @@ func (s *Service) Prepare(d *deckEntity.Deck) error {
 	}
 	imported.OwnerID = d.OwnerID
 	imported.SourceLink = d.SourceLink
+	if err := s.prepareCommander(imported, false); err != nil {
+		return err
+	}
+	if err := s.validateCards(imported); err != nil {
+		return err
+	}
 	*d = *imported
 	return nil
 }
@@ -52,15 +58,29 @@ func (s *Service) prepareManual(d *deckEntity.Deck) error {
 	if d.Cards == nil {
 		d.Cards = make([]deckEntity.Card, 0)
 	}
-	if d.Name != "" && d.Format == "commander" && d.Commander != "" {
-		commander, err := s.validator.ResolveCommander(d.Commander)
-		if err != nil {
-			return err
-		}
-		d.Commander = commander.Name
-		d.Color = colorIdentityCode(commander.ColorIdentity)
+	if err := s.prepareCommander(d, true); err != nil {
+		return err
 	}
 	return s.validateCards(d)
+}
+
+func (s *Service) prepareCommander(d *deckEntity.Deck, deriveColor bool) error {
+	if d.Name == "" || d.Format != "commander" || d.Commander == "" {
+		return nil
+	}
+	commanderName := strings.SplitN(d.Commander, " / ", 2)[0]
+	commander, err := s.validator.ResolveCommander(commanderName)
+	if err != nil {
+		return err
+	}
+	if commanderName == d.Commander {
+		d.Commander = commander.Name
+	}
+	d.CommanderImageURI = commander.ImageURI
+	if deriveColor {
+		d.Color = colorIdentityCode(commander.ColorIdentity)
+	}
+	return nil
 }
 
 func colorIdentityCode(colors []string) string {
@@ -98,6 +118,10 @@ func hasRequiredMetadata(d *deckEntity.Deck) bool {
 
 func (s *Service) Create(deck *deckEntity.Deck) error {
 	return s.repo.Create(deck)
+}
+
+func (s *Service) SearchCommanders(query string) ([]CommanderSuggestion, error) {
+	return s.validator.SearchCommanders(query)
 }
 
 func (s *Service) GetAll() ([]*deckEntity.Deck, error) {

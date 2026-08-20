@@ -2,6 +2,7 @@ package service
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 
 	deckEntity "github.com/josofm/liliana/internal/entity/deck"
@@ -13,7 +14,11 @@ import (
 type testCardValidator struct{}
 
 func (testCardValidator) ResolveCommander(name string) (deckEntity.Card, error) {
-	return deckEntity.Card{Name: name, ColorIdentity: []string{"U"}}, nil
+	return deckEntity.Card{Name: name, ColorIdentity: []string{"U"}, ImageURI: "https://example.com/commander.jpg"}, nil
+}
+
+func (testCardValidator) SearchCommanders(string) ([]CommanderSuggestion, error) {
+	return []CommanderSuggestion{{Name: "Thassa, God of the Sea", ColorIdentity: []string{"U"}}}, nil
 }
 
 func (testCardValidator) Validate(cards []deckEntity.Card) ([]deckEntity.Card, error) {
@@ -26,8 +31,19 @@ func (testCardValidator) Validate(cards []deckEntity.Card) ([]deckEntity.Card, e
 		if result[index].OracleID == "" {
 			result[index].OracleID = "oracle-" + result[index].Name
 		}
+		if result[index].ImageURI == "" {
+			result[index].ImageURI = "https://example.com/" + strings.ReplaceAll(strings.ToLower(result[index].Name), " ", "-") + ".jpg"
+		}
 	}
 	return result, nil
+}
+
+type testSourceImporter struct{ deck *deckEntity.Deck }
+
+func (i testSourceImporter) Import(string) (*deckEntity.Deck, error) {
+	copy := *i.deck
+	copy.Cards = append([]deckEntity.Card(nil), i.deck.Cards...)
+	return &copy, nil
 }
 
 func TestNewService(t *testing.T) {
@@ -156,9 +172,26 @@ func TestService_PrepareManualCommanderDerivesColorAndKeepsEmptyCards(t *testing
 
 	require.NoError(t, service.Prepare(d))
 	assert.Equal(t, "U", d.Color)
+	assert.Equal(t, "https://example.com/commander.jpg", d.CommanderImageURI)
 	assert.NotNil(t, d.Cards)
 	assert.Empty(t, d.Cards)
 	assert.NoError(t, service.Create(d))
+}
+
+func TestService_PrepareImportedDeckEnrichesCardImages(t *testing.T) {
+	repo := deckRepo.NewInMemoryRepo()
+	importer := testSourceImporter{deck: &deckEntity.Deck{
+		Name: "Imported", Color: "U", Format: "commander", Commander: "Thassa",
+		Cards: []deckEntity.Card{{OracleID: "oracle-aura", Name: "Aqueous Form", Quantity: 1}},
+	}}
+	service := NewServiceWithDependencies(repo, importer, testCardValidator{})
+	d := &deckEntity.Deck{OwnerID: 7, SourceLink: "https://archidekt.com/decks/123"}
+
+	require.NoError(t, service.Prepare(d))
+	require.Len(t, d.Cards, 1)
+	assert.Equal(t, "https://example.com/aqueous-form.jpg", d.Cards[0].ImageURI)
+	assert.Equal(t, "https://example.com/commander.jpg", d.CommanderImageURI)
+	assert.Equal(t, int64(7), d.OwnerID)
 }
 
 func TestColorIdentityCode(t *testing.T) {

@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Liliana API
-  version: 1.0.0
+  version: 1.3.0
   description: |
     API para autenticação, gerenciamento de usuários e gerenciamento de decks
     de Magic: The Gathering. As rotas protegidas exigem um access token JWT.
@@ -13,6 +13,7 @@ tags:
   - name: Autenticação
   - name: Usuários
   - name: Decks
+    description: Decks, importação de listas e busca de comandantes no Scryfall
 
 paths:
   /healthz:
@@ -283,6 +284,7 @@ paths:
                 color: WUBG
                 format: commander
                 commander: Atraxa, Praetors' Voice
+                commander_image_uri: https://cards.scryfall.io/normal/example.jpg
                 owner_id: 7
                 source_link: ""
                 cards: []
@@ -371,6 +373,50 @@ paths:
           description: Deck excluído
         "401":
           $ref: "#/components/responses/Unauthorized"
+
+  /decks/commanders:
+    get:
+      tags: [Decks]
+      summary: Autocomplete de comandantes
+      description: |
+        Consulta o Scryfall com os filtros `t:legendary t:creature`. A API também
+        verifica os tipos retornados, portanto planeswalkers e outras cartas que
+        não sejam criaturas lendárias não aparecem nas sugestões.
+      operationId: searchCommanders
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          description: Parte do nome do comandante
+          schema:
+            type: string
+            minLength: 2
+          example: atraxa
+      responses:
+        "200":
+          description: Sugestões de criaturas lendárias
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/CommanderSuggestion"
+              example:
+                - name: Atraxa, Praetors' Voice
+                  color_identity: [W, U, B, G]
+                  image_uri: https://cards.scryfall.io/normal/example.jpg
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "502":
+          description: Falha ao consultar o Scryfall
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /decks/{id}/cards:
     parameters:
@@ -601,7 +647,7 @@ components:
 
     Deck:
       type: object
-      required: [id, name, color, format, commander, owner_id, source_link, cards]
+      required: [id, name, color, format, commander, commander_image_uri, owner_id, source_link, cards]
       properties:
         id:
           type: integer
@@ -616,6 +662,13 @@ components:
           $ref: "#/components/schemas/DeckFormat"
         commander:
           type: string
+        commander_image_uri:
+          description: Imagem do comandante obtida pelo Scryfall; string vazia quando não aplicável
+          readOnly: true
+          oneOf:
+            - const: ""
+            - type: string
+              format: uri
         owner_id:
           type: integer
           format: int64
@@ -633,6 +686,11 @@ components:
 
     Card:
       type: object
+      description: |
+        Carta normalizada pelo Scryfall. Para cartas multiface, `name` contém o
+        nome canônico completo (`Face A // Face B`); `mana_cost` e `image_uri`
+        usam a face frontal quando não existem no objeto principal, enquanto
+        `type_line` e `color_identity` representam a carta completa.
       required: [oracle_id, name, quantity]
       properties:
         oracle_id:
@@ -646,6 +704,22 @@ components:
         mana_cost:
           type: string
         type_line:
+          type: string
+        color_identity:
+          type: array
+          items:
+            type: string
+            enum: [W, U, B, R, G]
+        image_uri:
+          type: string
+          format: uri
+
+    CommanderSuggestion:
+      type: object
+      description: Criatura lendária sugerida para o campo commander
+      required: [name, color_identity]
+      properties:
+        name:
           type: string
         color_identity:
           type: array
