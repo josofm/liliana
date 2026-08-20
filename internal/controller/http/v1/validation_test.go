@@ -22,6 +22,7 @@ import (
 func setupValidationTest() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
+	router.Use(func(c *gin.Context) { c.Set("user_id", int64(1)); c.Next() })
 	userRepository := userRepo.NewInMemoryRepo()
 	deckRepository := deckRepo.NewInMemoryRepo()
 	v1.NewUserHandler(router, userRepository)

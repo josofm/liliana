@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strings"
 	"sync"
 	"time"
@@ -16,6 +17,7 @@ const scryfallBatchSize = 75
 
 type CardValidator interface {
 	Validate(cards []deckEntity.Card) ([]deckEntity.Card, error)
+	ResolveCommander(name string) (deckEntity.Card, error)
 }
 
 type ScryfallValidator struct {
@@ -49,11 +51,62 @@ type scryfallCard struct {
 	Name          string            `json:"name"`
 	ManaCost      string            `json:"mana_cost"`
 	TypeLine      string            `json:"type_line"`
+	OracleText    string            `json:"oracle_text"`
 	ColorIdentity []string          `json:"color_identity"`
 	ImageURIs     map[string]string `json:"image_uris"`
 	CardFaces     []struct {
 		ImageURIs map[string]string `json:"image_uris"`
 	} `json:"card_faces"`
+}
+
+func (v *ScryfallValidator) ResolveCommander(name string) (deckEntity.Card, error) {
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if wait := 100*time.Millisecond - time.Since(v.lastRequest); wait > 0 {
+		time.Sleep(wait)
+	}
+	req, err := http.NewRequest(http.MethodGet, v.baseURL+"/cards/named?exact="+url.QueryEscape(name), nil)
+	if err != nil {
+		return deckEntity.Card{}, err
+	}
+	req.Header.Set("Accept", "application/json;q=0.9,*/*;q=0.8")
+	req.Header.Set("User-Agent", "liliana/1.0 (https://github.com/josofm/liliana)")
+	resp, err := v.client.Do(req)
+	v.lastRequest = time.Now()
+	if err != nil {
+		return deckEntity.Card{}, fmt.Errorf("find commander with Scryfall: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return deckEntity.Card{}, fmt.Errorf("commander not found: %s", name)
+	}
+	if resp.StatusCode != http.StatusOK {
+		return deckEntity.Card{}, fmt.Errorf("find commander with Scryfall: status %d", resp.StatusCode)
+	}
+	var source scryfallCard
+	if err := json.NewDecoder(resp.Body).Decode(&source); err != nil {
+		return deckEntity.Card{}, fmt.Errorf("decode Scryfall commander response: %w", err)
+	}
+	if !strings.EqualFold(source.Name, name) {
+		return deckEntity.Card{}, fmt.Errorf("commander not found: %s", name)
+	}
+	if !canBeCommander(source) {
+		return deckEntity.Card{}, fmt.Errorf("card cannot be a commander: %s", source.Name)
+	}
+	return cardFromScryfall(source), nil
+}
+
+func canBeCommander(card scryfallCard) bool {
+	return strings.Contains(card.TypeLine, "Legendary Creature") ||
+		strings.Contains(strings.ToLower(card.OracleText), "can be your commander")
+}
+
+func cardFromScryfall(source scryfallCard) deckEntity.Card {
+	imageURI := source.ImageURIs["normal"]
+	if imageURI == "" && len(source.CardFaces) > 0 {
+		imageURI = source.CardFaces[0].ImageURIs["normal"]
+	}
+	return deckEntity.Card{OracleID: source.OracleID, Name: source.Name, ManaCost: source.ManaCost, TypeLine: source.TypeLine, ColorIdentity: source.ColorIdentity, ImageURI: imageURI}
 }
 
 func (v *ScryfallValidator) Validate(cards []deckEntity.Card) ([]deckEntity.Card, error) {
@@ -136,11 +189,7 @@ func (v *ScryfallValidator) fetch(cards []deckEntity.Card, indices []int) (map[s
 
 	found := make(map[string]deckEntity.Card, len(response.Data))
 	for _, source := range response.Data {
-		imageURI := source.ImageURIs["normal"]
-		if imageURI == "" && len(source.CardFaces) > 0 {
-			imageURI = source.CardFaces[0].ImageURIs["normal"]
-		}
-		card := deckEntity.Card{OracleID: source.OracleID, Name: source.Name, ManaCost: source.ManaCost, TypeLine: source.TypeLine, ColorIdentity: source.ColorIdentity, ImageURI: imageURI}
+		card := cardFromScryfall(source)
 		found[strings.ToLower(source.Name)] = card
 		v.cache[strings.ToLower(source.Name)] = card
 	}

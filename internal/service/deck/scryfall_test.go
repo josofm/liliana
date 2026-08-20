@@ -11,6 +11,35 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+func TestScryfallValidator_ResolveCommanderByExactName(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, http.MethodGet, r.Method)
+		assert.Equal(t, "/cards/named", r.URL.Path)
+		assert.Equal(t, "Atraxa, Praetors' Voice", r.URL.Query().Get("exact"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"oracle_id":"id-1","name":"Atraxa, Praetors' Voice","type_line":"Legendary Creature — Phyrexian Angel Horror","color_identity":["W","U","B","G"],"image_uris":{"normal":"https://example.com/atraxa.jpg"}}`))
+	}))
+	defer server.Close()
+
+	validator := NewScryfallValidatorWithBaseURL(server.Client(), server.URL)
+	commander, err := validator.ResolveCommander("Atraxa, Praetors' Voice")
+	require.NoError(t, err)
+	assert.Equal(t, "id-1", commander.OracleID)
+	assert.Equal(t, []string{"W", "U", "B", "G"}, commander.ColorIdentity)
+}
+
+func TestScryfallValidator_RejectsCardThatCannotBeCommander(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"oracle_id":"id-1","name":"Sol Ring","type_line":"Artifact","oracle_text":"{T}: Add {C}{C}.","color_identity":[]}`))
+	}))
+	defer server.Close()
+
+	validator := NewScryfallValidatorWithBaseURL(server.Client(), server.URL)
+	_, err := validator.ResolveCommander("Sol Ring")
+	assert.EqualError(t, err, "card cannot be a commander: Sol Ring")
+}
+
 func TestScryfallValidator_Validate(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, http.MethodPost, r.Method)

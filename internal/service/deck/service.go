@@ -31,7 +31,7 @@ func NewServiceWithDependencies(repo deckRepo.Repository, importer SourceImporte
 
 func (s *Service) Prepare(d *deckEntity.Deck) error {
 	if d.SourceLink == "" {
-		return s.validateCards(d)
+		return s.prepareManual(d)
 	}
 	imported, err := s.importer.Import(d.SourceLink)
 	if err != nil {
@@ -46,6 +46,38 @@ func (s *Service) Prepare(d *deckEntity.Deck) error {
 	imported.SourceLink = d.SourceLink
 	*d = *imported
 	return nil
+}
+
+func (s *Service) prepareManual(d *deckEntity.Deck) error {
+	if d.Cards == nil {
+		d.Cards = make([]deckEntity.Card, 0)
+	}
+	if d.Name != "" && d.Format == "commander" && d.Commander != "" {
+		commander, err := s.validator.ResolveCommander(d.Commander)
+		if err != nil {
+			return err
+		}
+		d.Commander = commander.Name
+		d.Color = colorIdentityCode(commander.ColorIdentity)
+	}
+	return s.validateCards(d)
+}
+
+func colorIdentityCode(colors []string) string {
+	present := make(map[string]bool, len(colors))
+	for _, color := range colors {
+		present[strings.ToUpper(color)] = true
+	}
+	var result strings.Builder
+	for _, color := range []string{"W", "U", "B", "R", "G"} {
+		if present[color] {
+			result.WriteString(color)
+		}
+	}
+	if result.Len() == 0 {
+		return "C"
+	}
+	return result.String()
 }
 
 func (s *Service) validateCards(d *deckEntity.Deck) error {

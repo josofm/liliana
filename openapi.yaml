@@ -1,0 +1,726 @@
+openapi: 3.1.0
+info:
+  title: Liliana API
+  version: 1.0.0
+  description: |
+    API para autenticação, gerenciamento de usuários e gerenciamento de decks
+    de Magic: The Gathering. As rotas protegidas exigem um access token JWT.
+servers:
+  - url: http://localhost:8080
+    description: Ambiente local
+tags:
+  - name: Health
+  - name: Autenticação
+  - name: Usuários
+  - name: Decks
+
+paths:
+  /healthz:
+    get:
+      tags: [Health]
+      summary: Verifica a saúde da API
+      operationId: healthCheck
+      responses:
+        "200":
+          description: API disponível
+
+  /auth/register:
+    post:
+      tags: [Autenticação]
+      summary: Registra um usuário
+      operationId: register
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RegisterRequest"
+      responses:
+        "201":
+          description: Usuário registrado e tokens emitidos
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "409":
+          description: E-mail já cadastrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/login:
+    post:
+      tags: [Autenticação]
+      summary: Autentica um usuário
+      operationId: login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/LoginRequest"
+      responses:
+        "200":
+          description: Autenticação realizada
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+
+  /auth/refresh:
+    post:
+      tags: [Autenticação]
+      summary: Renova o par de tokens
+      operationId: refreshToken
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/RefreshTokenRequest"
+      responses:
+        "200":
+          description: Tokens renovados
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/AuthResponse"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /me:
+    get:
+      tags: [Autenticação]
+      summary: Retorna o usuário autenticado
+      operationId: getCurrentUser
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Perfil do usuário
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+  /users/:
+    post:
+      tags: [Usuários]
+      summary: Cria um usuário
+      operationId: createUser
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserRequest"
+      responses:
+        "201":
+          description: Usuário criado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    get:
+      tags: [Usuários]
+      summary: Lista os usuários
+      operationId: listUsers
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Lista de usuários
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /users/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    get:
+      tags: [Usuários]
+      summary: Busca um usuário por ID
+      operationId: getUserById
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Usuário encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Usuários]
+      summary: Atualiza um usuário
+      operationId: updateUser
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/UserRequest"
+      responses:
+        "200":
+          description: Usuário atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/User"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags: [Usuários]
+      summary: Exclui um usuário
+      operationId: deleteUser
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Usuário excluído
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /decks/:
+    post:
+      tags: [Decks]
+      summary: Cria um deck
+      description: |
+        Cria um deck para o usuário identificado pelo access token. O cliente não
+        envia `owner_id`; esse valor é derivado da claim `user_id` do JWT.
+
+        Na criação manual de um deck commander, `name`, `format` e `commander`
+        são obrigatórios. O comandante é procurado pelo nome exato no Scryfall,
+        sua elegibilidade é validada e a identidade de cor do deck é derivada
+        dele. `cards` pode ser omitido ou ser uma string vazia.
+
+        Quando informada, a lista usa uma carta por linha no formato
+        `quantidade nome`, por exemplo `1 Sol Ring`. Nomes repetidos são
+        consolidados e as cartas são enriquecidas com dados do Scryfall antes da
+        persistência. Como alternativa, `source_link` pode apontar para um deck
+        público do Archidekt.
+      operationId: createDeck
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeckRequest"
+            examples:
+              commanderSemCartas:
+                summary: Commander manual sem outras cartas
+                value:
+                  name: Atraxa Superfriends
+                  format: commander
+                  commander: Atraxa, Praetors' Voice
+                  source_link: ""
+                  cards: ""
+              commanderComCartas:
+                summary: Commander manual com lista de cartas
+                value:
+                  name: Atraxa Superfriends
+                  format: commander
+                  commander: Atraxa, Praetors' Voice
+                  cards: |-
+                    1 Sol Ring
+                    2 Island
+              archidekt:
+                summary: Importação de deck público
+                value:
+                  source_link: https://archidekt.com/decks/123456/example
+      responses:
+        "201":
+          description: Deck criado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deck"
+              example:
+                id: 42
+                name: Atraxa Superfriends
+                color: WUBG
+                format: commander
+                commander: Atraxa, Praetors' Voice
+                owner_id: 7
+                source_link: ""
+                cards: []
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    get:
+      tags: [Decks]
+      summary: Lista os decks
+      operationId: listDecks
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Lista de decks
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Deck"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /decks/{id}:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    get:
+      tags: [Decks]
+      summary: Busca um deck por ID
+      operationId: getDeckById
+      security:
+        - bearerAuth: []
+      responses:
+        "200":
+          description: Deck encontrado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deck"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+    put:
+      tags: [Decks]
+      summary: Atualiza um deck
+      description: O proprietário é sempre redefinido a partir da claim `user_id` do JWT; `owner_id` não faz parte do corpo.
+      operationId: updateDeck
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeckRequest"
+      responses:
+        "200":
+          description: Deck atualizado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deck"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
+        "500":
+          $ref: "#/components/responses/InternalServerError"
+    delete:
+      tags: [Decks]
+      summary: Exclui um deck
+      operationId: deleteDeck
+      security:
+        - bearerAuth: []
+      responses:
+        "204":
+          description: Deck excluído
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+
+  /decks/{id}/cards:
+    parameters:
+      - $ref: "#/components/parameters/ResourceId"
+    post:
+      tags: [Decks]
+      summary: Adiciona cartas a um deck
+      operationId: addCardsToDeck
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeckCardsRequest"
+      responses:
+        "200":
+          description: Deck com as cartas adicionadas
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deck"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "404":
+          $ref: "#/components/responses/NotFound"
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    ResourceId:
+      name: id
+      in: path
+      required: true
+      description: Identificador numérico do recurso
+      schema:
+        type: integer
+        format: int64
+        minimum: 1
+
+  responses:
+    BadRequest:
+      description: JSON inválido, parâmetro inválido ou falha de validação
+      content:
+        application/json:
+          schema:
+            oneOf:
+              - $ref: "#/components/schemas/Error"
+              - $ref: "#/components/schemas/ValidationError"
+    Unauthorized:
+      description: Token ausente, inválido ou expirado, ou credenciais inválidas
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    NotFound:
+      description: Recurso não encontrado
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    UnprocessableEntity:
+      description: Comandante inválido ou inelegível, carta não identificada, ou falha ao importar/enriquecer o deck
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+    InternalServerError:
+      description: Erro interno ao processar a operação
+      content:
+        application/json:
+          schema:
+            $ref: "#/components/schemas/Error"
+
+  schemas:
+    RegisterRequest:
+      type: object
+      additionalProperties: false
+      required: [name, email, password]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 50
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 6
+
+    LoginRequest:
+      type: object
+      additionalProperties: false
+      required: [email, password]
+      properties:
+        email:
+          type: string
+          format: email
+        password:
+          type: string
+          format: password
+          minLength: 6
+
+    RefreshTokenRequest:
+      type: object
+      additionalProperties: false
+      required: [refresh_token]
+      properties:
+        refresh_token:
+          type: string
+          description: Refresh token JWT emitido no login ou registro
+
+    AuthResponse:
+      type: object
+      required: [access_token, refresh_token, token_type, expires_in, user]
+      properties:
+        access_token:
+          type: string
+        refresh_token:
+          type: string
+        token_type:
+          type: string
+          example: Bearer
+        expires_in:
+          type: integer
+          format: int64
+          description: Tempo de validade do access token, em segundos
+          example: 900
+        user:
+          $ref: "#/components/schemas/User"
+
+    User:
+      type: object
+      required: [id, name, email]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+
+    UserRequest:
+      type: object
+      additionalProperties: false
+      required: [name, password, email]
+      properties:
+        name:
+          type: string
+          minLength: 2
+          maxLength: 50
+        password:
+          type: string
+          format: password
+          minLength: 6
+        email:
+          type: string
+          format: email
+
+    DeckRequest:
+      type: object
+      additionalProperties: false
+      description: |
+        Dados de criação ou atualização. `owner_id` não é aceito: a API deriva o
+        proprietário do JWT. Na criação manual, `cards` é opcional e pode ser uma
+        string vazia.
+      allOf:
+        - if:
+            properties:
+              format:
+                const: commander
+            required: [format]
+          then:
+            required: [name, format, commander]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        color:
+          $ref: "#/components/schemas/DeckColor"
+          description: Para commander, é derivada do comandante e o valor enviado é ignorado
+        format:
+          $ref: "#/components/schemas/DeckFormat"
+        commander:
+          type: string
+          minLength: 1
+          maxLength: 100
+          description: Obrigatório para commander; resolvido por nome exato e validado no Scryfall
+        source_link:
+          description: Link público de deck no Archidekt ou string vazia na criação manual
+          oneOf:
+            - const: ""
+            - type: string
+              format: uri
+        cards:
+          type: string
+          default: ""
+          description: Lista opcional, uma carta por linha, no formato `quantidade nome`; repetições são consolidadas
+          example: |-
+            1 Sol Ring
+            2 Island
+
+    DeckCardsRequest:
+      type: object
+      additionalProperties: false
+      required: [cards]
+      properties:
+        cards:
+          type: string
+          minLength: 1
+          description: Lista de cartas, uma por linha, no formato `quantidade nome`
+          example: |-
+            1 Sol Ring
+            2 Island
+
+    Deck:
+      type: object
+      required: [id, name, color, format, commander, owner_id, source_link, cards]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        color:
+          $ref: "#/components/schemas/DeckColor"
+        format:
+          $ref: "#/components/schemas/DeckFormat"
+        commander:
+          type: string
+        owner_id:
+          type: integer
+          format: int64
+          minimum: 1
+          readOnly: true
+          description: Identificador do proprietário derivado da claim `user_id` do JWT
+        source_link:
+          type: string
+          description: URL de origem; string vazia quando não informada
+        cards:
+          type: array
+          description: Lista vazia quando nenhuma outra carta foi informada
+          items:
+            $ref: "#/components/schemas/Card"
+
+    Card:
+      type: object
+      required: [oracle_id, name, quantity]
+      properties:
+        oracle_id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        quantity:
+          type: integer
+          minimum: 1
+        mana_cost:
+          type: string
+        type_line:
+          type: string
+        color_identity:
+          type: array
+          items:
+            type: string
+            enum: [W, U, B, R, G]
+        image_uri:
+          type: string
+          format: uri
+
+    DeckColor:
+      type: string
+      description: Identidade de cor do deck, na ordem WUBRG
+      enum:
+        - C
+        - W
+        - U
+        - B
+        - R
+        - G
+        - WU
+        - WB
+        - WR
+        - WG
+        - UB
+        - UR
+        - UG
+        - BR
+        - BG
+        - RG
+        - WUB
+        - WUR
+        - WUG
+        - WBR
+        - WBG
+        - WRG
+        - UBR
+        - UBG
+        - URG
+        - BRG
+        - WUBR
+        - WUBG
+        - WURG
+        - WBRG
+        - UBRG
+        - WUBRG
+
+    DeckFormat:
+      type: string
+      enum:
+        - commander
+        - standard
+        - modern
+        - pioneer
+        - legacy
+        - vintage
+        - pauper
+        - brawl
+        - oathbreaker
+        - limited
+
+    Error:
+      type: object
+      required: [error]
+      properties:
+        error:
+          type: string
+
+    ValidationError:
+      type: object
+      required: [errors]
+      properties:
+        errors:
+          type: object
+          additionalProperties:
+            type: string
+          example:
+            email: must be a valid email

@@ -13,11 +13,13 @@ import (
 
 // DeckRequest represents the incoming deck data for validation
 type DeckRequest struct {
-	Name       string `json:"name"`
-	Color      string `json:"color"`
-	Format     string `json:"format"`
-	Commander  string `json:"commander"`
-	OwnerID    int64  `json:"owner_id" validate:"required,gt=0"`
+	Name      string `json:"name"`
+	Color     string `json:"color"`
+	Format    string `json:"format"`
+	Commander string `json:"commander"`
+	// OwnerID is kept only for source compatibility with internal callers.
+	// JSON clients cannot set it; ownership always comes from the authenticated JWT.
+	OwnerID    int64  `json:"-"`
 	SourceLink string `json:"source_link" validate:"omitempty,url"`
 	Cards      string `json:"cards"`
 }
@@ -61,6 +63,11 @@ func (h *DeckHandler) create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"errors": validationErrors})
 		return
 	}
+	ownerID, exists := GetUserIDFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
 
 	// Convert to entity
 	deck := deckEntity.Deck{
@@ -68,7 +75,7 @@ func (h *DeckHandler) create(c *gin.Context) {
 		Color:      request.Color,
 		Format:     request.Format,
 		Commander:  request.Commander,
-		OwnerID:    request.OwnerID,
+		OwnerID:    ownerID,
 		SourceLink: request.SourceLink,
 	}
 	if request.Cards != "" {
@@ -113,6 +120,11 @@ func (h *DeckHandler) getByID(c *gin.Context) {
 
 func (h *DeckHandler) update(c *gin.Context) {
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	ownerID, exists := GetUserIDFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
 
 	var request DeckRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -130,7 +142,7 @@ func (h *DeckHandler) update(c *gin.Context) {
 		Color:      request.Color,
 		Format:     request.Format,
 		Commander:  request.Commander,
-		OwnerID:    request.OwnerID,
+		OwnerID:    ownerID,
 		SourceLink: request.SourceLink,
 	}
 	if err := h.service.Prepare(&deck); err != nil {

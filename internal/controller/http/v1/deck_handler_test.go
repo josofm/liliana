@@ -21,6 +21,14 @@ import (
 
 type testCardValidator struct{}
 
+func (testCardValidator) ResolveCommander(name string) (deckEntity.Card, error) {
+	colors := []string{"U"}
+	if name == "Atraxa, Praetors' Voice" {
+		colors = []string{"W", "U", "B", "G"}
+	}
+	return deckEntity.Card{Name: name, ColorIdentity: colors}, nil
+}
+
 func (testCardValidator) Validate(cards []deckEntity.Card) ([]deckEntity.Card, error) {
 	for index := range cards {
 		if cards[index].OracleID == "" {
@@ -33,6 +41,7 @@ func (testCardValidator) Validate(cards []deckEntity.Card) ([]deckEntity.Card, e
 func setupDeckHandler() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
+	router.Use(func(c *gin.Context) { c.Set("user_id", int64(1)); c.Next() })
 	repo := deckRepo.NewInMemoryRepo()
 	v1.NewDeckHandler(router, repo)
 	return router
@@ -41,6 +50,7 @@ func setupDeckHandler() *gin.Engine {
 func setupDeckHandlerWithCardValidation() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
+	router.Use(func(c *gin.Context) { c.Set("user_id", int64(1)); c.Next() })
 	repo := deckRepo.NewInMemoryRepo()
 	service := deckService.NewServiceWithDependencies(repo, deckService.NewArchidektImporter(), testCardValidator{})
 	v1.NewDeckHandlerWithService(router, service)
@@ -79,6 +89,38 @@ func TestDeckHandler_Create(t *testing.T) {
 	assert.Equal(t, deckRequest.Commander, response.Commander)
 	assert.Equal(t, deckRequest.OwnerID, response.OwnerID)
 	assert.Equal(t, int64(1), response.ID)
+}
+
+func TestDeckHandler_Create_IgnoresOwnerIDFromJSON(t *testing.T) {
+	router := setupDeckHandlerWithCardValidation()
+	body := []byte(`{"name":"Test Deck","format":"commander","commander":"Atraxa, Praetors' Voice","owner_id":999}`)
+	req, err := http.NewRequest(http.MethodPost, "/decks/", bytes.NewReader(body))
+	checkErr(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
+	var response deckEntity.Deck
+	checkErr(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, int64(1), response.OwnerID)
+}
+
+func TestDeckHandler_Create_RequiresAuthenticatedUser(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	repo := deckRepo.NewInMemoryRepo()
+	service := deckService.NewServiceWithDependencies(repo, deckService.NewArchidektImporter(), testCardValidator{})
+	v1.NewDeckHandlerWithService(router, service)
+	body := []byte(`{"name":"Test Deck","format":"commander","commander":"Atraxa, Praetors' Voice"}`)
+	req, err := http.NewRequest(http.MethodPost, "/decks/", bytes.NewReader(body))
+	checkErr(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.JSONEq(t, `{"error":"user not authenticated"}`, w.Body.String())
 }
 
 func TestDeckHandler_Create_NonCommanderWithoutCommander(t *testing.T) {
