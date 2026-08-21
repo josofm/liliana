@@ -264,7 +264,7 @@ func (v *ScryfallValidator) Validate(cards []deckEntity.Card) ([]deckEntity.Card
 func (v *ScryfallValidator) fetch(cards []deckEntity.Card, indices []int) (map[string]deckEntity.Card, []string, error) {
 	payload := scryfallCollectionRequest{Identifiers: make([]scryfallIdentifier, len(indices))}
 	for position, index := range indices {
-		payload.Identifiers[position] = scryfallIdentifier{Name: cards[index].Name}
+		payload.Identifiers[position] = scryfallIdentifier{Name: scryfallLookupName(cards[index].Name)}
 	}
 	body, err := json.Marshal(payload)
 	if err != nil {
@@ -315,4 +315,9 @@ func (v *ScryfallValidator) fetch(cards []deckEntity.Card, indices []int) (map[s
 		notFound[index] = identifier.Name
 	}
 	return found, notFound, nil
+}
+
+func scryfallLookupName(name string) string {
+	firstFace, _, _ := strings.Cut(name, " // ")
+	return strings.TrimSpace(firstFace)
 }

@@ -153,6 +153,39 @@ func TestScryfallValidator_ValidateModalDoubleFacedCardByFaceName(t *testing.T) 
 	assert.Equal(t, "https://example.com/trawler.jpg", cards[0].ImageURI)
 }
 
+func TestScryfallValidator_ValidateMultifaceCardFromImportedCanonicalName(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		var request scryfallCollectionRequest
+		require.NoError(t, json.NewDecoder(r.Body).Decode(&request))
+		require.Len(t, request.Identifiers, 1)
+		assert.Equal(t, "Boggart Trawler", request.Identifiers[0].Name)
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"data":[{
+				"oracle_id":"oracle-boggart",
+				"name":"Boggart Trawler // Boggart Bog",
+				"type_line":"Creature — Goblin Rogue // Land",
+				"color_identity":["B"],
+				"card_faces":[
+					{"name":"Boggart Trawler","mana_cost":"{2}{B}","type_line":"Creature — Goblin Rogue","image_uris":{"normal":"https://example.com/trawler.jpg"}},
+					{"name":"Boggart Bog","type_line":"Land","image_uris":{"normal":"https://example.com/bog.jpg"}}
+				]
+			}],
+			"not_found":[]
+		}`))
+	}))
+	defer server.Close()
+
+	validator := NewScryfallValidatorWithBaseURL(server.Client(), server.URL)
+	cards, err := validator.Validate([]deckEntity.Card{{
+		OracleID: "oracle-boggart", Name: "Boggart Trawler // Boggart Bog", Quantity: 1,
+	}})
+	require.NoError(t, err)
+	require.Len(t, cards, 1)
+	assert.Equal(t, "Boggart Trawler // Boggart Bog", cards[0].Name)
+	assert.Equal(t, "https://example.com/trawler.jpg", cards[0].ImageURI)
+}
+
 func TestScryfallValidator_LimitsRequestsToTwoPerSecond(t *testing.T) {
 	requestTimes := make([]time.Time, 0, 2)
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {

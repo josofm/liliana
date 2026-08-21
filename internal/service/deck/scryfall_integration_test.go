@@ -3,6 +3,8 @@
 package service
 
 import (
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	deckEntity "github.com/josofm/liliana/internal/entity/deck"
@@ -10,8 +12,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestScryfallValidator_ValidateRealCards(t *testing.T) {
-	cards, err := NewScryfallValidator().Validate([]deckEntity.Card{
+func TestScryfallValidator_ValidateCardsThroughHTTP(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[
+			{"oracle_id":"id-aqueous","name":"Aqueous Form","mana_cost":"{U}","type_line":"Enchantment — Aura","color_identity":["U"]},
+			{"oracle_id":"id-vorrac","name":"Vorrac Battlehorns","mana_cost":"{2}","type_line":"Artifact — Equipment","color_identity":[]}
+		],"not_found":[]}`))
+	}))
+	defer server.Close()
+
+	cards, err := NewScryfallValidatorWithBaseURL(server.Client(), server.URL).Validate([]deckEntity.Card{
 		{Name: "Aqueous Form", Quantity: 1},
 		{Name: "Vorrac Battlehorns", Quantity: 1},
 	})

@@ -38,6 +38,18 @@ func (testCardValidator) Validate(cards []deckEntity.Card) ([]deckEntity.Card, e
 		if cards[index].OracleID == "" {
 			cards[index].OracleID = "oracle-" + cards[index].Name
 		}
+		switch cards[index].Name {
+		case "Aqueous Form":
+			cards[index].ManaCost = "{U}"
+			cards[index].TypeLine = "Enchantment — Aura"
+			cards[index].ColorIdentity = []string{"U"}
+			cards[index].ImageURI = "https://example.com/aqueous-form.jpg"
+		case "Vorrac Battlehorns":
+			cards[index].ManaCost = "{2}"
+			cards[index].TypeLine = "Artifact — Equipment"
+			cards[index].ColorIdentity = []string{}
+			cards[index].ImageURI = "https://example.com/vorrac-battlehorns.jpg"
+		}
 	}
 	return cards, nil
 }
@@ -215,8 +227,8 @@ func TestDeckHandler_AddCards(t *testing.T) {
 	assert.Len(t, response.Cards, 2)
 }
 
-func TestDeckHandler_CreateManualWithLiveScryfall(t *testing.T) {
-	router := setupDeckHandler()
+func TestDeckHandler_CreateManualWithValidatedCards(t *testing.T) {
+	router := setupDeckHandlerWithCardValidation()
 	requestBody := v1.DeckRequest{
 		Name: "Validated Auras", Color: "U", Format: "commander", Commander: "Thassa, God of the Sea", OwnerID: 1,
 		Cards: "1 Aqueous Form\n1 Vorrac Battlehorns",
@@ -238,7 +250,25 @@ func TestDeckHandler_CreateManualWithLiveScryfall(t *testing.T) {
 }
 
 func TestDeckHandler_CreateFromArchidektWithCards(t *testing.T) {
-	router := setupDeckHandler()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"name":"Elves visions", "deckFormat":3,
+			"categories":[{"name":"Commander","includedInDeck":true},{"name":"Mainboard","includedInDeck":true}],
+			"cards":[
+				{"categories":["Commander"],"quantity":1,"card":{"oracleCard":{"name":"Elrond, Master of Healing","uid":"id-elrond","colorIdentity":["Blue","Green"]}}},
+				{"categories":["Mainboard"],"quantity":1,"card":{"oracleCard":{"name":"Llanowar Elves","uid":"id-elves","colorIdentity":["Green"]}}}
+			]
+		}`))
+	}))
+	defer server.Close()
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(func(c *gin.Context) { c.Set("user_id", int64(1)); c.Next() })
+	repo := deckRepo.NewInMemoryRepo()
+	importer := deckService.NewArchidektImporterWithBaseURL(server.Client(), server.URL)
+	service := deckService.NewServiceWithDependencies(repo, importer, testCardValidator{})
+	v1.NewDeckHandlerWithService(router, service)
 	requestBody := v1.DeckRequest{OwnerID: 1, SourceLink: "https://archidekt.com/decks/22559444/elves_visions"}
 	body, err := json.Marshal(requestBody)
 	checkErr(t, err)
