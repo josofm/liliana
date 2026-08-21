@@ -15,6 +15,7 @@ import (
 	userEntity "github.com/josofm/liliana/internal/entity/user"
 	deckRepo "github.com/josofm/liliana/internal/repository/deck"
 	userRepo "github.com/josofm/liliana/internal/repository/user"
+	deckService "github.com/josofm/liliana/internal/service/deck"
 
 	"github.com/stretchr/testify/assert"
 )
@@ -22,10 +23,12 @@ import (
 func setupValidationTest() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
+	router.Use(func(c *gin.Context) { c.Set("user_id", int64(1)); c.Next() })
 	userRepository := userRepo.NewInMemoryRepo()
 	deckRepository := deckRepo.NewInMemoryRepo()
 	v1.NewUserHandler(router, userRepository)
-	v1.NewDeckHandler(router, deckRepository)
+	deckSvc := deckService.NewServiceWithDependencies(deckRepository, deckService.NewArchidektImporter(), testCardValidator{})
+	v1.NewDeckHandlerWithService(router, deckSvc)
 	return router
 }
 
@@ -124,54 +127,18 @@ func TestDeckHandler_Validation(t *testing.T) {
 		deckRequest    v1.DeckRequest
 		expectedStatus int
 		shouldHaveID   bool
+		expectedColor  string
 	}{
 		{
 			name: "valid_deck",
 			deckRequest: v1.DeckRequest{
 				Name:      "My Commander Deck",
-				Color:     "WUBRG",
 				Format:    "commander",
 				Commander: "Atraxa, Praetors' Voice",
-				OwnerID:   1,
 			},
 			expectedStatus: http.StatusCreated,
 			shouldHaveID:   true,
-		},
-		{
-			name: "invalid_color",
-			deckRequest: v1.DeckRequest{
-				Name:      "My Commander Deck",
-				Color:     "INVALID",
-				Format:    "commander",
-				Commander: "Atraxa, Praetors' Voice",
-				OwnerID:   1,
-			},
-			expectedStatus: http.StatusBadRequest,
-			shouldHaveID:   false,
-		},
-		{
-			name: "valid_color_W",
-			deckRequest: v1.DeckRequest{
-				Name:      "White Deck",
-				Color:     "W",
-				Format:    "commander",
-				Commander: "Sram, Senior Edificer",
-				OwnerID:   1,
-			},
-			expectedStatus: http.StatusCreated,
-			shouldHaveID:   true,
-		},
-		{
-			name: "invalid_owner_id",
-			deckRequest: v1.DeckRequest{
-				Name:      "My Commander Deck",
-				Color:     "WUBRG",
-				Format:    "commander",
-				Commander: "Atraxa, Praetors' Voice",
-				OwnerID:   0,
-			},
-			expectedStatus: http.StatusBadRequest,
-			shouldHaveID:   false,
+			expectedColor:  "WUBG",
 		},
 		{
 			name: "valid_URL",
@@ -180,11 +147,11 @@ func TestDeckHandler_Validation(t *testing.T) {
 				Color:      "WUBRG",
 				Format:     "commander",
 				Commander:  "Atraxa, Praetors' Voice",
-				OwnerID:    1,
-				SourceLink: "https://archidekt.com/decks/123456",
+				SourceLink: "https://example.com/decks/123456",
 			},
 			expectedStatus: http.StatusCreated,
 			shouldHaveID:   true,
+			expectedColor:  "WUBRG",
 		},
 		{
 			name: "invalid_URL",
@@ -193,7 +160,6 @@ func TestDeckHandler_Validation(t *testing.T) {
 				Color:      "WUBRG",
 				Format:     "commander",
 				Commander:  "Atraxa, Praetors' Voice",
-				OwnerID:    1,
 				SourceLink: "not-a-url",
 			},
 			expectedStatus: http.StatusBadRequest,
@@ -221,9 +187,10 @@ func TestDeckHandler_Validation(t *testing.T) {
 				assert.NoError(t, err)
 				assert.NotZero(t, response.ID)
 				assert.Equal(t, tt.deckRequest.Name, response.Name)
-				assert.Equal(t, tt.deckRequest.Color, response.Color)
+				assert.Equal(t, tt.expectedColor, response.Color)
 				assert.Equal(t, tt.deckRequest.Format, response.Format)
 				assert.Equal(t, tt.deckRequest.Commander, response.Commander)
+				assert.Equal(t, int64(1), response.OwnerID)
 			}
 		})
 	}

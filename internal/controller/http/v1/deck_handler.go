@@ -13,11 +13,13 @@ import (
 
 // DeckRequest represents the incoming deck data for validation
 type DeckRequest struct {
-	Name       string `json:"name"`
-	Color      string `json:"color"`
-	Format     string `json:"format"`
-	Commander  string `json:"commander"`
-	OwnerID    int64  `json:"owner_id" validate:"required,gt=0"`
+	Name      string `json:"name"`
+	Color     string `json:"color"`
+	Format    string `json:"format"`
+	Commander string `json:"commander"`
+	// OwnerID is kept only for source compatibility with internal callers.
+	// JSON clients cannot set it; ownership always comes from the authenticated JWT.
+	OwnerID    int64  `json:"-"`
 	SourceLink string `json:"source_link" validate:"omitempty,url"`
 	Cards      string `json:"cards"`
 }
@@ -42,6 +44,7 @@ func NewDeckHandlerWithService(r *gin.Engine, service *deckService.Service) {
 
 	group := r.Group("/decks")
 	{
+		group.GET("/commanders", h.searchCommanders)
 		group.POST("/", h.create)
 		group.GET("/", h.getAll)
 		group.GET("/:id", h.getByID)
@@ -49,6 +52,20 @@ func NewDeckHandlerWithService(r *gin.Engine, service *deckService.Service) {
 		group.POST("/:id/cards", h.addCards)
 		group.DELETE("/:id", h.delete)
 	}
+}
+
+func (h *DeckHandler) searchCommanders(c *gin.Context) {
+	query := c.Query("q")
+	if len([]rune(query)) < 2 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "query must contain at least 2 characters"})
+		return
+	}
+	commanders, err := h.service.SearchCommanders(query)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "could not search commanders"})
+		return
+	}
+	c.JSON(http.StatusOK, commanders)
 }
 
 func (h *DeckHandler) create(c *gin.Context) {
@@ -61,6 +78,11 @@ func (h *DeckHandler) create(c *gin.Context) {
 		c.JSON(http.StatusBadRequest, gin.H{"errors": validationErrors})
 		return
 	}
+	ownerID, exists := GetUserIDFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
 
 	// Convert to entity
 	deck := deckEntity.Deck{
@@ -68,7 +90,7 @@ func (h *DeckHandler) create(c *gin.Context) {
 		Color:      request.Color,
 		Format:     request.Format,
 		Commander:  request.Commander,
-		OwnerID:    request.OwnerID,
+		OwnerID:    ownerID,
 		SourceLink: request.SourceLink,
 	}
 	if request.Cards != "" {
@@ -113,6 +135,11 @@ func (h *DeckHandler) getByID(c *gin.Context) {
 
 func (h *DeckHandler) update(c *gin.Context) {
 	id, _ := strconv.ParseInt(c.Param("id"), 10, 64)
+	ownerID, exists := GetUserIDFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
 
 	var request DeckRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
@@ -130,7 +157,7 @@ func (h *DeckHandler) update(c *gin.Context) {
 		Color:      request.Color,
 		Format:     request.Format,
 		Commander:  request.Commander,
-		OwnerID:    request.OwnerID,
+		OwnerID:    ownerID,
 		SourceLink: request.SourceLink,
 	}
 	if err := h.service.Prepare(&deck); err != nil {

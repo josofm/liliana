@@ -31,7 +31,7 @@ func NewServiceWithDependencies(repo deckRepo.Repository, importer SourceImporte
 
 func (s *Service) Prepare(d *deckEntity.Deck) error {
 	if d.SourceLink == "" {
-		return s.validateCards(d)
+		return s.prepareManual(d)
 	}
 	imported, err := s.importer.Import(d.SourceLink)
 	if err != nil {
@@ -44,8 +44,60 @@ func (s *Service) Prepare(d *deckEntity.Deck) error {
 	}
 	imported.OwnerID = d.OwnerID
 	imported.SourceLink = d.SourceLink
+	if err := s.prepareCommander(imported, false); err != nil {
+		return err
+	}
+	if err := s.validateCards(imported); err != nil {
+		return err
+	}
 	*d = *imported
 	return nil
+}
+
+func (s *Service) prepareManual(d *deckEntity.Deck) error {
+	if d.Cards == nil {
+		d.Cards = make([]deckEntity.Card, 0)
+	}
+	if err := s.prepareCommander(d, true); err != nil {
+		return err
+	}
+	return s.validateCards(d)
+}
+
+func (s *Service) prepareCommander(d *deckEntity.Deck, deriveColor bool) error {
+	if d.Name == "" || d.Format != "commander" || d.Commander == "" {
+		return nil
+	}
+	commanderName := strings.SplitN(d.Commander, " / ", 2)[0]
+	commander, err := s.validator.ResolveCommander(commanderName)
+	if err != nil {
+		return err
+	}
+	if commanderName == d.Commander {
+		d.Commander = commander.Name
+	}
+	d.CommanderImageURI = commander.ImageURI
+	if deriveColor {
+		d.Color = colorIdentityCode(commander.ColorIdentity)
+	}
+	return nil
+}
+
+func colorIdentityCode(colors []string) string {
+	present := make(map[string]bool, len(colors))
+	for _, color := range colors {
+		present[strings.ToUpper(color)] = true
+	}
+	var result strings.Builder
+	for _, color := range []string{"W", "U", "B", "R", "G"} {
+		if present[color] {
+			result.WriteString(color)
+		}
+	}
+	if result.Len() == 0 {
+		return "C"
+	}
+	return result.String()
 }
 
 func (s *Service) validateCards(d *deckEntity.Deck) error {
@@ -66,6 +118,10 @@ func hasRequiredMetadata(d *deckEntity.Deck) bool {
 
 func (s *Service) Create(deck *deckEntity.Deck) error {
 	return s.repo.Create(deck)
+}
+
+func (s *Service) SearchCommanders(query string) ([]CommanderSuggestion, error) {
+	return s.validator.SearchCommanders(query)
 }
 
 func (s *Service) GetAll() ([]*deckEntity.Deck, error) {

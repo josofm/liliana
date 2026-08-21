@@ -19,8 +19,8 @@ func (r *postgresRepo) Create(d *deckEntity.Deck) error {
 		return err
 	}
 	defer tx.Rollback()
-	const query = `INSERT INTO decks (name, color, format, commander, owner_id, source_link) VALUES ($1,$2,$3,$4,$5,$6) RETURNING id`
-	if err := tx.QueryRow(query, d.Name, d.Color, d.Format, d.Commander, d.OwnerID, d.SourceLink).Scan(&d.ID); err != nil {
+	const query = `INSERT INTO decks (name, color, format, commander, commander_image_uri, owner_id, source_link) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`
+	if err := tx.QueryRow(query, d.Name, d.Color, d.Format, d.Commander, d.CommanderImageURI, d.OwnerID, d.SourceLink).Scan(&d.ID); err != nil {
 		return err
 	}
 	if err := saveCards(tx, d); err != nil {
@@ -30,14 +30,14 @@ func (r *postgresRepo) Create(d *deckEntity.Deck) error {
 }
 
 func (r *postgresRepo) GetAll() ([]*deckEntity.Deck, error) {
-	rows, err := r.db.Query(`SELECT id, name, color, format, commander, owner_id, source_link FROM decks ORDER BY id`)
+	rows, err := r.db.Query(`SELECT id, name, color, format, commander, commander_image_uri, owner_id, source_link FROM decks ORDER BY id`)
 	if err != nil {
 		return nil, err
 	}
 	decks := make([]*deckEntity.Deck, 0)
 	for rows.Next() {
 		d := &deckEntity.Deck{}
-		if err := rows.Scan(&d.ID, &d.Name, &d.Color, &d.Format, &d.Commander, &d.OwnerID, &d.SourceLink); err != nil {
+		if err := rows.Scan(&d.ID, &d.Name, &d.Color, &d.Format, &d.Commander, &d.CommanderImageURI, &d.OwnerID, &d.SourceLink); err != nil {
 			rows.Close()
 			return nil, err
 		}
@@ -60,7 +60,7 @@ func (r *postgresRepo) GetAll() ([]*deckEntity.Deck, error) {
 
 func (r *postgresRepo) GetByID(id int64) (*deckEntity.Deck, error) {
 	d := &deckEntity.Deck{}
-	err := r.db.QueryRow(`SELECT id, name, color, format, commander, owner_id, source_link FROM decks WHERE id=$1`, id).Scan(&d.ID, &d.Name, &d.Color, &d.Format, &d.Commander, &d.OwnerID, &d.SourceLink)
+	err := r.db.QueryRow(`SELECT id, name, color, format, commander, commander_image_uri, owner_id, source_link FROM decks WHERE id=$1`, id).Scan(&d.ID, &d.Name, &d.Color, &d.Format, &d.Commander, &d.CommanderImageURI, &d.OwnerID, &d.SourceLink)
 	if errors.Is(err, sql.ErrNoRows) {
 		return nil, errors.New("deck not found")
 	}
@@ -79,7 +79,7 @@ func (r *postgresRepo) Update(id int64, d *deckEntity.Deck) error {
 		return err
 	}
 	defer tx.Rollback()
-	result, err := tx.Exec(`UPDATE decks SET name=$1,color=$2,format=$3,commander=$4,owner_id=$5,source_link=$6 WHERE id=$7`, d.Name, d.Color, d.Format, d.Commander, d.OwnerID, d.SourceLink, id)
+	result, err := tx.Exec(`UPDATE decks SET name=$1,color=$2,format=$3,commander=$4,commander_image_uri=$5,owner_id=$6,source_link=$7 WHERE id=$8`, d.Name, d.Color, d.Format, d.Commander, d.CommanderImageURI, d.OwnerID, d.SourceLink, id)
 	if err != nil {
 		return err
 	}

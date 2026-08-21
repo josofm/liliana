@@ -15,7 +15,7 @@ services:
       JWT_ACCESS_EXPIRY: 15m
       JWT_REFRESH_EXPIRY: 168h
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS:-http://localhost:5173,http://127.0.0.1:5173}
-      AUTO_MIGRATE: "false"
+      AUTO_MIGRATE: "true"
       DATABASE_URL: postgres://liliana:liliana@postgres:5432/liliana_test?sslmode=disable
       LILIANA_POSTGRES_TEST_DSN: postgres://liliana:liliana@postgres:5432/liliana_test?sslmode=disable
     ports:

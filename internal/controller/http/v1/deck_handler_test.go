@@ -21,10 +21,34 @@ import (
 
 type testCardValidator struct{}
 
+func (testCardValidator) ResolveCommander(name string) (deckEntity.Card, error) {
+	colors := []string{"U"}
+	if name == "Atraxa, Praetors' Voice" || name == "Atraxa" {
+		colors = []string{"W", "U", "B", "G"}
+	}
+	return deckEntity.Card{Name: name, ColorIdentity: colors, ImageURI: "https://example.com/commander.jpg"}, nil
+}
+
+func (testCardValidator) SearchCommanders(string) ([]deckService.CommanderSuggestion, error) {
+	return []deckService.CommanderSuggestion{{Name: "Thassa, God of the Sea", ColorIdentity: []string{"U"}}}, nil
+}
+
 func (testCardValidator) Validate(cards []deckEntity.Card) ([]deckEntity.Card, error) {
 	for index := range cards {
 		if cards[index].OracleID == "" {
 			cards[index].OracleID = "oracle-" + cards[index].Name
+		}
+		switch cards[index].Name {
+		case "Aqueous Form":
+			cards[index].ManaCost = "{U}"
+			cards[index].TypeLine = "Enchantment — Aura"
+			cards[index].ColorIdentity = []string{"U"}
+			cards[index].ImageURI = "https://example.com/aqueous-form.jpg"
+		case "Vorrac Battlehorns":
+			cards[index].ManaCost = "{2}"
+			cards[index].TypeLine = "Artifact — Equipment"
+			cards[index].ColorIdentity = []string{}
+			cards[index].ImageURI = "https://example.com/vorrac-battlehorns.jpg"
 		}
 	}
 	return cards, nil
@@ -33,6 +57,7 @@ func (testCardValidator) Validate(cards []deckEntity.Card) ([]deckEntity.Card, e
 func setupDeckHandler() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
+	router.Use(func(c *gin.Context) { c.Set("user_id", int64(1)); c.Next() })
 	repo := deckRepo.NewInMemoryRepo()
 	v1.NewDeckHandler(router, repo)
 	return router
@@ -41,6 +66,7 @@ func setupDeckHandler() *gin.Engine {
 func setupDeckHandlerWithCardValidation() *gin.Engine {
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
+	router.Use(func(c *gin.Context) { c.Set("user_id", int64(1)); c.Next() })
 	repo := deckRepo.NewInMemoryRepo()
 	service := deckService.NewServiceWithDependencies(repo, deckService.NewArchidektImporter(), testCardValidator{})
 	v1.NewDeckHandlerWithService(router, service)
@@ -74,11 +100,55 @@ func TestDeckHandler_Create(t *testing.T) {
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	checkErr(t, err)
 	assert.Equal(t, deckRequest.Name, response.Name)
-	assert.Equal(t, deckRequest.Color, response.Color)
+	assert.Equal(t, "WUBG", response.Color)
 	assert.Equal(t, deckRequest.Format, response.Format)
 	assert.Equal(t, deckRequest.Commander, response.Commander)
-	assert.Equal(t, deckRequest.OwnerID, response.OwnerID)
+	assert.Equal(t, "https://example.com/commander.jpg", response.CommanderImageURI)
+	assert.Equal(t, int64(1), response.OwnerID)
 	assert.Equal(t, int64(1), response.ID)
+}
+
+func TestDeckHandler_Create_IgnoresOwnerIDFromJSON(t *testing.T) {
+	router := setupDeckHandlerWithCardValidation()
+	body := []byte(`{"name":"Test Deck","format":"commander","commander":"Atraxa, Praetors' Voice","owner_id":999}`)
+	req, err := http.NewRequest(http.MethodPost, "/decks/", bytes.NewReader(body))
+	checkErr(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusCreated, w.Code, w.Body.String())
+	var response deckEntity.Deck
+	checkErr(t, json.Unmarshal(w.Body.Bytes(), &response))
+	assert.Equal(t, int64(1), response.OwnerID)
+}
+
+func TestDeckHandler_Create_RequiresAuthenticatedUser(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	repo := deckRepo.NewInMemoryRepo()
+	service := deckService.NewServiceWithDependencies(repo, deckService.NewArchidektImporter(), testCardValidator{})
+	v1.NewDeckHandlerWithService(router, service)
+	body := []byte(`{"name":"Test Deck","format":"commander","commander":"Atraxa, Praetors' Voice"}`)
+	req, err := http.NewRequest(http.MethodPost, "/decks/", bytes.NewReader(body))
+	checkErr(t, err)
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	assert.Equal(t, http.StatusUnauthorized, w.Code)
+	assert.JSONEq(t, `{"error":"user not authenticated"}`, w.Body.String())
+}
+
+func TestDeckHandler_SearchCommanders(t *testing.T) {
+	router := setupDeckHandlerWithCardValidation()
+	req, err := http.NewRequest(http.MethodGet, "/decks/commanders?q=thassa", nil)
+	checkErr(t, err)
+	w := httptest.NewRecorder()
+	router.ServeHTTP(w, req)
+
+	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
+	assert.JSONEq(t, `[{"name":"Thassa, God of the Sea","color_identity":["U"]}]`, w.Body.String())
 }
 
 func TestDeckHandler_Create_NonCommanderWithoutCommander(t *testing.T) {
@@ -157,8 +227,8 @@ func TestDeckHandler_AddCards(t *testing.T) {
 	assert.Len(t, response.Cards, 2)
 }
 
-func TestDeckHandler_CreateManualWithLiveScryfall(t *testing.T) {
-	router := setupDeckHandler()
+func TestDeckHandler_CreateManualWithValidatedCards(t *testing.T) {
+	router := setupDeckHandlerWithCardValidation()
 	requestBody := v1.DeckRequest{
 		Name: "Validated Auras", Color: "U", Format: "commander", Commander: "Thassa, God of the Sea", OwnerID: 1,
 		Cards: "1 Aqueous Form\n1 Vorrac Battlehorns",
@@ -180,7 +250,25 @@ func TestDeckHandler_CreateManualWithLiveScryfall(t *testing.T) {
 }
 
 func TestDeckHandler_CreateFromArchidektWithCards(t *testing.T) {
-	router := setupDeckHandler()
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{
+			"name":"Elves visions", "deckFormat":3,
+			"categories":[{"name":"Commander","includedInDeck":true},{"name":"Mainboard","includedInDeck":true}],
+			"cards":[
+				{"categories":["Commander"],"quantity":1,"card":{"oracleCard":{"name":"Elrond, Master of Healing","uid":"id-elrond","colorIdentity":["Blue","Green"]}}},
+				{"categories":["Mainboard"],"quantity":1,"card":{"oracleCard":{"name":"Llanowar Elves","uid":"id-elves","colorIdentity":["Green"]}}}
+			]
+		}`))
+	}))
+	defer server.Close()
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	router.Use(func(c *gin.Context) { c.Set("user_id", int64(1)); c.Next() })
+	repo := deckRepo.NewInMemoryRepo()
+	importer := deckService.NewArchidektImporterWithBaseURL(server.Client(), server.URL)
+	service := deckService.NewServiceWithDependencies(repo, importer, testCardValidator{})
+	v1.NewDeckHandlerWithService(router, service)
 	requestBody := v1.DeckRequest{OwnerID: 1, SourceLink: "https://archidekt.com/decks/22559444/elves_visions"}
 	body, err := json.Marshal(requestBody)
 	checkErr(t, err)
@@ -215,7 +303,7 @@ func TestDeckHandler_Create_InvalidJSON(t *testing.T) {
 }
 
 func TestDeckHandler_GetAll(t *testing.T) {
-	router := setupDeckHandler()
+	router := setupDeckHandlerWithCardValidation()
 
 	// Create test decks via HTTP
 	deckRequest1 := v1.DeckRequest{Name: "Deck 1", Color: "W", Format: "commander", Commander: "Sram", OwnerID: 1}
@@ -256,7 +344,7 @@ func TestDeckHandler_GetAll(t *testing.T) {
 }
 
 func TestDeckHandler_GetByID(t *testing.T) {
-	router := setupDeckHandler()
+	router := setupDeckHandlerWithCardValidation()
 
 	// Create test deck via HTTP
 	deckRequest := v1.DeckRequest{Name: "Test Deck", Color: "WUBRG", Format: "commander", Commander: "Atraxa", OwnerID: 1}
@@ -281,7 +369,7 @@ func TestDeckHandler_GetByID(t *testing.T) {
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	checkErr(t, err)
 	assert.Equal(t, deckRequest.Name, response.Name)
-	assert.Equal(t, deckRequest.Color, response.Color)
+	assert.Equal(t, "WUBG", response.Color)
 	assert.Equal(t, deckRequest.Format, response.Format)
 	assert.Equal(t, deckRequest.Commander, response.Commander)
 }
@@ -298,7 +386,7 @@ func TestDeckHandler_GetByID_NotFound(t *testing.T) {
 }
 
 func TestDeckHandler_Update(t *testing.T) {
-	router := setupDeckHandler()
+	router := setupDeckHandlerWithCardValidation()
 
 	// Create deck via HTTP
 	deckRequest := v1.DeckRequest{Name: "Original Deck", Color: "W", Format: "commander", Commander: "Sram", OwnerID: 1}
@@ -346,7 +434,7 @@ func TestDeckHandler_Update_InvalidJSON(t *testing.T) {
 }
 
 func TestDeckHandler_Delete(t *testing.T) {
-	router := setupDeckHandler()
+	router := setupDeckHandlerWithCardValidation()
 
 	// Create deck via HTTP
 	deckRequest := v1.DeckRequest{Name: "Test Deck", Color: "WUBRG", Format: "commander", Commander: "Atraxa", OwnerID: 1}
