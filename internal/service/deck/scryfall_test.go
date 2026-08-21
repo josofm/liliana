@@ -42,10 +42,10 @@ func TestScryfallValidator_RejectsCardThatCannotBeCommander(t *testing.T) {
 	assert.EqualError(t, err, "card cannot be a commander: Sol Ring")
 }
 
-func TestScryfallValidator_SearchCommandersFiltersLegendaryCreatures(t *testing.T) {
+func TestScryfallValidator_SearchCommandersFiltersEligibleCommanders(t *testing.T) {
 	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		assert.Equal(t, "/cards/search", r.URL.Path)
-		assert.Equal(t, "atraxa t:legendary t:creature", r.URL.Query().Get("q"))
+		assert.Equal(t, "atraxa is:commander", r.URL.Query().Get("q"))
 		assert.Equal(t, "name", r.URL.Query().Get("order"))
 		w.Header().Set("Content-Type", "application/json")
 		_, _ = w.Write([]byte(`{"data":[{"name":"Atraxa, Praetors' Voice","type_line":"Legendary Creature — Phyrexian Angel Horror","color_identity":["W","U","B","G"]},{"name":"Jace","type_line":"Legendary Planeswalker — Jace","color_identity":["U"]}]}`))
@@ -57,6 +57,43 @@ func TestScryfallValidator_SearchCommandersFiltersLegendaryCreatures(t *testing.
 	require.NoError(t, err)
 	require.Len(t, result, 1)
 	assert.Equal(t, "Atraxa, Praetors' Voice", result[0].Name)
+}
+
+func TestScryfallValidator_ResolveCommanderSupportsGodAndPlaneswalker(t *testing.T) {
+	tests := []struct {
+		name       string
+		typeLine   string
+		oracleText string
+	}{
+		{
+			name:     "Karametra, God of Harvests",
+			typeLine: "Legendary Enchantment Creature — God",
+		},
+		{
+			name:       "Teferi, Temporal Archmage",
+			typeLine:   "Legendary Planeswalker — Teferi",
+			oracleText: "Teferi, Temporal Archmage can be your commander.",
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				assert.Equal(t, tt.name, r.URL.Query().Get("exact"))
+				w.Header().Set("Content-Type", "application/json")
+				require.NoError(t, json.NewEncoder(w).Encode(scryfallCard{
+					OracleID: "oracle-commander", Name: tt.name, TypeLine: tt.typeLine,
+					OracleText: tt.oracleText, ColorIdentity: []string{"G", "W"},
+				}))
+			}))
+			defer server.Close()
+
+			validator := NewScryfallValidatorWithBaseURL(server.Client(), server.URL)
+			commander, err := validator.ResolveCommander(tt.name)
+			require.NoError(t, err)
+			assert.Equal(t, tt.name, commander.Name)
+		})
+	}
 }
 
 func TestScryfallValidator_Validate(t *testing.T) {

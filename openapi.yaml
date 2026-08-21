@@ -379,9 +379,10 @@ paths:
       tags: [Decks]
       summary: Autocomplete de comandantes
       description: |
-        Consulta o Scryfall com os filtros `t:legendary t:creature`. A API também
-        verifica os tipos retornados, portanto planeswalkers e outras cartas que
-        não sejam criaturas lendárias não aparecem nas sugestões.
+        Consulta o Scryfall com o filtro `is:commander`. A API aceita criaturas
+        lendárias, inclusive criaturas com tipos adicionais como Enchantment, e
+        cartas cujo texto Oracle declare `can be your commander`, como alguns
+        planeswalkers.
       operationId: searchCommanders
       security:
         - bearerAuth: []
@@ -396,7 +397,7 @@ paths:
           example: atraxa
       responses:
         "200":
-          description: Sugestões de criaturas lendárias
+          description: Sugestões de cartas elegíveis como comandante
           content:
             application/json:
               schema:
@@ -716,7 +717,7 @@ components:
 
     CommanderSuggestion:
       type: object
-      description: Criatura lendária sugerida para o campo commander
+      description: Carta elegível sugerida para o campo commander
       required: [name, color_identity]
       properties:
         name:

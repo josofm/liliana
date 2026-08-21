@@ -116,7 +116,7 @@ func (v *ScryfallValidator) ResolveCommander(name string) (deckEntity.Card, erro
 }
 
 func (v *ScryfallValidator) SearchCommanders(query string) ([]CommanderSuggestion, error) {
-	search := strings.TrimSpace(query) + " t:legendary t:creature"
+	search := strings.TrimSpace(query) + " is:commander"
 	req, err := http.NewRequest(http.MethodGet, v.baseURL+"/cards/search?q="+url.QueryEscape(search)+"&order=name&unique=cards", nil)
 	if err != nil {
 		return nil, err
@@ -146,7 +146,7 @@ func (v *ScryfallValidator) SearchCommanders(query string) ([]CommanderSuggestio
 	}
 	result := make([]CommanderSuggestion, 0, len(response.Data))
 	for _, source := range response.Data {
-		if !hasLegendaryCreatureFace(source) {
+		if !canBeCommander(source) {
 			continue
 		}
 		card := cardFromScryfall(source)
@@ -168,15 +168,19 @@ func canBeCommander(card scryfallCard) bool {
 }
 
 func hasLegendaryCreatureFace(card scryfallCard) bool {
-	if strings.Contains(card.TypeLine, "Legendary Creature") {
+	if isLegendaryCreature(card.TypeLine) {
 		return true
 	}
 	for _, face := range card.CardFaces {
-		if strings.Contains(face.TypeLine, "Legendary Creature") {
+		if isLegendaryCreature(face.TypeLine) {
 			return true
 		}
 	}
 	return false
+}
+
+func isLegendaryCreature(typeLine string) bool {
+	return strings.Contains(typeLine, "Legendary") && strings.Contains(typeLine, "Creature")
 }
 
 func scryfallCardMatchesName(card scryfallCard, name string) bool {

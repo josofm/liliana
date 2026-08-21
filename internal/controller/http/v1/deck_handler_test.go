@@ -23,7 +23,7 @@ type testCardValidator struct{}
 
 func (testCardValidator) ResolveCommander(name string) (deckEntity.Card, error) {
 	colors := []string{"U"}
-	if name == "Atraxa, Praetors' Voice" {
+	if name == "Atraxa, Praetors' Voice" || name == "Atraxa" {
 		colors = []string{"W", "U", "B", "G"}
 	}
 	return deckEntity.Card{Name: name, ColorIdentity: colors, ImageURI: "https://example.com/commander.jpg"}, nil
@@ -88,11 +88,11 @@ func TestDeckHandler_Create(t *testing.T) {
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	checkErr(t, err)
 	assert.Equal(t, deckRequest.Name, response.Name)
-	assert.Equal(t, deckRequest.Color, response.Color)
+	assert.Equal(t, "WUBG", response.Color)
 	assert.Equal(t, deckRequest.Format, response.Format)
 	assert.Equal(t, deckRequest.Commander, response.Commander)
 	assert.Equal(t, "https://example.com/commander.jpg", response.CommanderImageURI)
-	assert.Equal(t, deckRequest.OwnerID, response.OwnerID)
+	assert.Equal(t, int64(1), response.OwnerID)
 	assert.Equal(t, int64(1), response.ID)
 }
 
@@ -273,7 +273,7 @@ func TestDeckHandler_Create_InvalidJSON(t *testing.T) {
 }
 
 func TestDeckHandler_GetAll(t *testing.T) {
-	router := setupDeckHandler()
+	router := setupDeckHandlerWithCardValidation()
 
 	// Create test decks via HTTP
 	deckRequest1 := v1.DeckRequest{Name: "Deck 1", Color: "W", Format: "commander", Commander: "Sram", OwnerID: 1}
@@ -314,7 +314,7 @@ func TestDeckHandler_GetAll(t *testing.T) {
 }
 
 func TestDeckHandler_GetByID(t *testing.T) {
-	router := setupDeckHandler()
+	router := setupDeckHandlerWithCardValidation()
 
 	// Create test deck via HTTP
 	deckRequest := v1.DeckRequest{Name: "Test Deck", Color: "WUBRG", Format: "commander", Commander: "Atraxa", OwnerID: 1}
@@ -339,7 +339,7 @@ func TestDeckHandler_GetByID(t *testing.T) {
 	err = json.Unmarshal(w.Body.Bytes(), &response)
 	checkErr(t, err)
 	assert.Equal(t, deckRequest.Name, response.Name)
-	assert.Equal(t, deckRequest.Color, response.Color)
+	assert.Equal(t, "WUBG", response.Color)
 	assert.Equal(t, deckRequest.Format, response.Format)
 	assert.Equal(t, deckRequest.Commander, response.Commander)
 }
@@ -356,7 +356,7 @@ func TestDeckHandler_GetByID_NotFound(t *testing.T) {
 }
 
 func TestDeckHandler_Update(t *testing.T) {
-	router := setupDeckHandler()
+	router := setupDeckHandlerWithCardValidation()
 
 	// Create deck via HTTP
 	deckRequest := v1.DeckRequest{Name: "Original Deck", Color: "W", Format: "commander", Commander: "Sram", OwnerID: 1}
@@ -404,7 +404,7 @@ func TestDeckHandler_Update_InvalidJSON(t *testing.T) {
 }
 
 func TestDeckHandler_Delete(t *testing.T) {
-	router := setupDeckHandler()
+	router := setupDeckHandlerWithCardValidation()
 
 	// Create deck via HTTP
 	deckRequest := v1.DeckRequest{Name: "Test Deck", Color: "WUBRG", Format: "commander", Commander: "Atraxa", OwnerID: 1}
