@@ -151,6 +151,11 @@ func TestScryfallValidator_ValidateModalDoubleFacedCardByFaceName(t *testing.T) 
 	assert.Equal(t, "Creature — Goblin Rogue // Land", cards[0].TypeLine)
 	assert.Equal(t, []string{"B"}, cards[0].ColorIdentity)
 	assert.Equal(t, "https://example.com/trawler.jpg", cards[0].ImageURI)
+	require.Len(t, cards[0].CardFaces, 2)
+	assert.Equal(t, "Boggart Trawler", cards[0].CardFaces[0].Name)
+	assert.Equal(t, "https://example.com/trawler.jpg", cards[0].CardFaces[0].ImageURI)
+	assert.Equal(t, "Boggart Bog", cards[0].CardFaces[1].Name)
+	assert.Equal(t, "https://example.com/bog.jpg", cards[0].CardFaces[1].ImageURI)
 }
 
 func TestScryfallValidator_ValidateMultifaceCardFromImportedCanonicalName(t *testing.T) {

@@ -227,6 +227,36 @@ func TestDeckHandler_AddCards(t *testing.T) {
 	assert.Len(t, response.Cards, 2)
 }
 
+func TestDeckHandler_PatchCards(t *testing.T) {
+	router := setupDeckHandlerWithCardValidation()
+	createBody, err := json.Marshal(v1.DeckRequest{Name: "Auras", Format: "commander", Commander: "Thassa", Cards: "1 Aqueous Form"})
+	checkErr(t, err)
+	createRequest, err := http.NewRequest(http.MethodPost, "/decks/", bytes.NewReader(createBody))
+	checkErr(t, err)
+	createRequest.Header.Set("Content-Type", "application/json")
+	createResponse := httptest.NewRecorder()
+	router.ServeHTTP(createResponse, createRequest)
+	require.Equal(t, http.StatusCreated, createResponse.Code, createResponse.Body.String())
+
+	patchBody, err := json.Marshal(v1.DeckCardsPatchRequest{
+		Upsert: []v1.DeckCardUpsertRequest{{Name: "Vorrac Battlehorns", Quantity: 2}},
+		Remove: []string{"oracle-Aqueous Form"},
+	})
+	checkErr(t, err)
+	patchRequest, err := http.NewRequest(http.MethodPatch, "/decks/1/cards", bytes.NewReader(patchBody))
+	checkErr(t, err)
+	patchRequest.Header.Set("Content-Type", "application/json")
+	patchResponse := httptest.NewRecorder()
+	router.ServeHTTP(patchResponse, patchRequest)
+
+	require.Equal(t, http.StatusOK, patchResponse.Code, patchResponse.Body.String())
+	var response deckEntity.Deck
+	checkErr(t, json.Unmarshal(patchResponse.Body.Bytes(), &response))
+	require.Len(t, response.Cards, 1)
+	assert.Equal(t, "Vorrac Battlehorns", response.Cards[0].Name)
+	assert.Equal(t, 2, response.Cards[0].Quantity)
+}
+
 func TestDeckHandler_CreateManualWithValidatedCards(t *testing.T) {
 	router := setupDeckHandlerWithCardValidation()
 	requestBody := v1.DeckRequest{

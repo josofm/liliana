@@ -147,6 +147,40 @@ func (s *Service) Update(id int64, d *deckEntity.Deck) error {
 	return s.repo.Update(id, d)
 }
 
+func (s *Service) PatchCards(id int64, upsert []deckEntity.Card, remove []string) (*deckEntity.Deck, error) {
+	if len(upsert) == 0 && len(remove) == 0 {
+		return nil, errors.New("at least one card change is required")
+	}
+	for _, card := range upsert {
+		if strings.TrimSpace(card.Name) == "" || card.Quantity <= 0 {
+			return nil, errors.New("upsert cards require name and quantity greater than zero")
+		}
+	}
+	if len(upsert) > 0 {
+		validated, err := s.validator.Validate(upsert)
+		if err != nil {
+			return nil, err
+		}
+		upsert = validated
+	}
+	uniqueRemove := make([]string, 0, len(remove))
+	seen := make(map[string]bool, len(remove))
+	for _, oracleID := range remove {
+		oracleID = strings.TrimSpace(oracleID)
+		if oracleID == "" {
+			return nil, errors.New("remove requires non-empty oracle ids")
+		}
+		if !seen[oracleID] {
+			seen[oracleID] = true
+			uniqueRemove = append(uniqueRemove, oracleID)
+		}
+	}
+	if err := s.repo.PatchCards(id, upsert, uniqueRemove); err != nil {
+		return nil, err
+	}
+	return s.repo.GetByID(id)
+}
+
 func (s *Service) Delete(id int64) error {
 	return s.repo.Delete(id)
 }
@@ -198,21 +232,17 @@ func (s *Service) AddCards(id int64, cards []deckEntity.Card) (*deckEntity.Deck,
 	if err != nil {
 		return nil, err
 	}
-	positions := make(map[string]int, len(d.Cards))
-	for index, card := range d.Cards {
-		positions[strings.ToLower(card.Name)] = index
+	existingQuantities := make(map[string]int, len(d.Cards))
+	for _, card := range d.Cards {
+		existingQuantities[strings.ToLower(card.Name)] = card.Quantity
 	}
-	for _, card := range cards {
+	for index := range cards {
+		card := &cards[index]
 		key := strings.ToLower(card.Name)
-		if position, exists := positions[key]; exists {
-			d.Cards[position].Quantity += card.Quantity
-			continue
-		}
-		positions[key] = len(d.Cards)
-		d.Cards = append(d.Cards, card)
+		card.Quantity += existingQuantities[key]
 	}
-	if err := s.repo.Update(id, d); err != nil {
+	if err := s.repo.PatchCards(id, cards, nil); err != nil {
 		return nil, err
 	}
-	return d, nil
+	return s.repo.GetByID(id)
 }

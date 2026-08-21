@@ -14,11 +14,20 @@ type Deck struct {
 }
 
 type Card struct {
-	OracleID      string   `json:"oracle_id"`
-	Name          string   `json:"name"`
-	Quantity      int      `json:"quantity"`
-	ManaCost      string   `json:"mana_cost,omitempty"`
-	TypeLine      string   `json:"type_line,omitempty"`
-	ColorIdentity []string `json:"color_identity,omitempty"`
-	ImageURI      string   `json:"image_uri,omitempty"`
+	OracleID      string     `json:"oracle_id"`
+	Name          string     `json:"name"`
+	Quantity      int        `json:"quantity"`
+	ManaCost      string     `json:"mana_cost,omitempty"`
+	TypeLine      string     `json:"type_line,omitempty"`
+	ColorIdentity []string   `json:"color_identity,omitempty"`
+	ImageURI      string     `json:"image_uri,omitempty"`
+	CardFaces     []CardFace `json:"card_faces,omitempty"`
+}
+
+type CardFace struct {
+	Name       string `json:"name"`
+	ManaCost   string `json:"mana_cost,omitempty"`
+	TypeLine   string `json:"type_line,omitempty"`
+	OracleText string `json:"oracle_text,omitempty"`
+	ImageURI   string `json:"image_uri,omitempty"`
 }

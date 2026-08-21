@@ -214,7 +214,14 @@ func cardFromScryfall(source scryfallCard) deckEntity.Card {
 		}
 		typeLine = strings.Join(faceTypes, " // ")
 	}
-	return deckEntity.Card{OracleID: source.OracleID, Name: source.Name, ManaCost: manaCost, TypeLine: typeLine, ColorIdentity: source.ColorIdentity, ImageURI: imageURI}
+	faces := make([]deckEntity.CardFace, 0, len(source.CardFaces))
+	for _, sourceFace := range source.CardFaces {
+		faces = append(faces, deckEntity.CardFace{
+			Name: sourceFace.Name, ManaCost: sourceFace.ManaCost, TypeLine: sourceFace.TypeLine,
+			OracleText: sourceFace.OracleText, ImageURI: sourceFace.ImageURIs["normal"],
+		})
+	}
+	return deckEntity.Card{OracleID: source.OracleID, Name: source.Name, ManaCost: manaCost, TypeLine: typeLine, ColorIdentity: source.ColorIdentity, ImageURI: imageURI, CardFaces: faces}
 }
 
 func (v *ScryfallValidator) Validate(cards []deckEntity.Card) ([]deckEntity.Card, error) {

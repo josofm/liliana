@@ -55,8 +55,41 @@ func (r *inMemoryRepo) Update(id int64, d *deck.Deck) error {
 	if _, exists := r.decks[id]; !exists {
 		return errors.New("deck not found")
 	}
+	d.Cards = r.decks[id].Cards
 	d.ID = id
 	r.decks[id] = d
+	return nil
+}
+
+func (r *inMemoryRepo) PatchCards(id int64, upsert []deck.Card, remove []string) error {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	d, exists := r.decks[id]
+	if !exists {
+		return errors.New("deck not found")
+	}
+	removed := make(map[string]bool, len(remove))
+	for _, oracleID := range remove {
+		removed[oracleID] = true
+	}
+	cards := make([]deck.Card, 0, len(d.Cards)+len(upsert))
+	positions := make(map[string]int)
+	for _, card := range d.Cards {
+		if removed[card.OracleID] {
+			continue
+		}
+		positions[card.OracleID] = len(cards)
+		cards = append(cards, card)
+	}
+	for _, card := range upsert {
+		if position, ok := positions[card.OracleID]; ok {
+			cards[position] = card
+			continue
+		}
+		positions[card.OracleID] = len(cards)
+		cards = append(cards, card)
+	}
+	d.Cards = cards
 	return nil
 }
 

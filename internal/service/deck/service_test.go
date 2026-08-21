@@ -111,7 +111,7 @@ func TestService_Update(t *testing.T) {
 	service := NewService(repo)
 
 	// Create deck
-	deck := &deckEntity.Deck{Name: "Original Deck", Color: "WU", Format: "commander", Commander: "Azorius", OwnerID: 1}
+	deck := &deckEntity.Deck{Name: "Original Deck", Color: "WU", Format: "commander", Commander: "Azorius", OwnerID: 1, Cards: []deckEntity.Card{{OracleID: "oracle-existing", Name: "Existing", Quantity: 1}}}
 	service.Create(deck)
 
 	// Update deck
@@ -126,6 +126,8 @@ func TestService_Update(t *testing.T) {
 	assert.Equal(t, "BR", found.Color)
 	assert.Equal(t, "commander", found.Format)
 	assert.Equal(t, "Rakdos", found.Commander)
+	require.Len(t, found.Cards, 1)
+	assert.Equal(t, "oracle-existing", found.Cards[0].OracleID)
 }
 
 func TestService_Delete(t *testing.T) {
@@ -202,11 +204,45 @@ func TestColorIdentityCode(t *testing.T) {
 func TestService_AddCards(t *testing.T) {
 	repo := deckRepo.NewInMemoryRepo()
 	service := NewServiceWithDependencies(repo, NewArchidektImporter(), testCardValidator{})
-	d := &deckEntity.Deck{Name: "Manual", Color: "U", Format: "commander", Commander: "Thassa", OwnerID: 1, Cards: []deckEntity.Card{{Name: "Aqueous Form", Quantity: 1}}}
+	d := &deckEntity.Deck{Name: "Manual", Color: "U", Format: "commander", Commander: "Thassa", OwnerID: 1, Cards: []deckEntity.Card{{OracleID: "oracle-aqueous form", Name: "Aqueous Form", Quantity: 1}}}
 	assert.NoError(t, service.Create(d))
 
 	updated, err := service.AddCards(d.ID, []deckEntity.Card{{Name: "aqueous form", Quantity: 2}, {Name: "Vorrac Battlehorns", Quantity: 1}})
 	assert.NoError(t, err)
 	assert.Equal(t, 3, updated.Cards[0].Quantity)
 	assert.Equal(t, "Vorrac Battlehorns", updated.Cards[1].Name)
+}
+
+func TestService_PatchCardsUpsertsRemovesAndIsIdempotent(t *testing.T) {
+	repo := deckRepo.NewInMemoryRepo()
+	service := NewServiceWithDependencies(repo, NewArchidektImporter(), testCardValidator{})
+	d := &deckEntity.Deck{Name: "Manual", Color: "U", Format: "commander", Commander: "Thassa", OwnerID: 1, Cards: []deckEntity.Card{{OracleID: "oracle-Old Card", Name: "Old Card", Quantity: 1}}}
+	require.NoError(t, service.Create(d))
+
+	updated, err := service.PatchCards(d.ID, []deckEntity.Card{{Name: "Aqueous Form", Quantity: 2}}, []string{"oracle-Old Card"})
+	require.NoError(t, err)
+	require.Len(t, updated.Cards, 1)
+	assert.Equal(t, "Aqueous Form", updated.Cards[0].Name)
+	assert.Equal(t, 2, updated.Cards[0].Quantity)
+
+	updated, err = service.PatchCards(d.ID, []deckEntity.Card{{Name: "Aqueous Form", Quantity: 3}}, nil)
+	require.NoError(t, err)
+	updated, err = service.PatchCards(d.ID, []deckEntity.Card{{Name: "Aqueous Form", Quantity: 3}}, nil)
+	require.NoError(t, err)
+	require.Len(t, updated.Cards, 1)
+	assert.Equal(t, 3, updated.Cards[0].Quantity)
+}
+
+func TestService_PatchCardsDoesNotChangeDeckWhenValidationFails(t *testing.T) {
+	repo := deckRepo.NewInMemoryRepo()
+	service := NewServiceWithDependencies(repo, NewArchidektImporter(), testCardValidator{})
+	d := &deckEntity.Deck{Name: "Manual", Color: "U", Format: "commander", Commander: "Thassa", OwnerID: 1, Cards: []deckEntity.Card{{OracleID: "oracle-existing", Name: "Existing", Quantity: 1}}}
+	require.NoError(t, service.Create(d))
+
+	_, err := service.PatchCards(d.ID, []deckEntity.Card{{Name: "Invalid", Quantity: 1}}, []string{"oracle-existing"})
+	require.Error(t, err)
+	found, getErr := service.GetByID(d.ID)
+	require.NoError(t, getErr)
+	require.Len(t, found.Cards, 1)
+	assert.Equal(t, "oracle-existing", found.Cards[0].OracleID)
 }

@@ -5,6 +5,7 @@ CREATE TABLE cards (
 	type_line TEXT NOT NULL DEFAULT '',
 	color_identity JSONB NOT NULL DEFAULT '[]'::jsonb,
 	image_uri TEXT NOT NULL DEFAULT '',
+	card_faces JSONB NOT NULL DEFAULT '[]'::jsonb,
 	updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 

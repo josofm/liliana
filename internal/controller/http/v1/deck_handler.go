@@ -3,6 +3,7 @@ package v1
 import (
 	"net/http"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	deckEntity "github.com/josofm/liliana/internal/entity/deck"
@@ -28,6 +29,16 @@ type DeckCardsRequest struct {
 	Cards string `json:"cards" validate:"required"`
 }
 
+type DeckCardUpsertRequest struct {
+	Name     string `json:"name"`
+	Quantity int    `json:"quantity"`
+}
+
+type DeckCardsPatchRequest struct {
+	Upsert []DeckCardUpsertRequest `json:"upsert"`
+	Remove []string                `json:"remove"`
+}
+
 type DeckHandler struct {
 	service   *deckService.Service
 	validator *validator.Validator
@@ -50,6 +61,7 @@ func NewDeckHandlerWithService(r *gin.Engine, service *deckService.Service) {
 		group.GET("/:id", h.getByID)
 		group.PUT("/:id", h.update)
 		group.POST("/:id/cards", h.addCards)
+		group.PATCH("/:id/cards", h.patchCards)
 		group.DELETE("/:id", h.delete)
 	}
 }
@@ -174,7 +186,12 @@ func (h *DeckHandler) update(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not update deck"})
 		return
 	}
-	c.JSON(http.StatusOK, deck)
+	updated, err := h.service.GetByID(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not load updated deck"})
+		return
+	}
+	c.JSON(http.StatusOK, updated)
 }
 
 func (h *DeckHandler) delete(c *gin.Context) {
@@ -207,6 +224,51 @@ func (h *DeckHandler) addCards(c *gin.Context) {
 	if err != nil {
 		if err.Error() == "deck not found" {
 			c.JSON(http.StatusNotFound, gin.H{"error": "deck not found"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, d)
+}
+
+func (h *DeckHandler) patchCards(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid deck id"})
+		return
+	}
+	ownerID, exists := GetUserIDFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
+	existing, err := h.service.GetByID(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "deck not found"})
+		return
+	}
+	if existing.OwnerID != ownerID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "deck does not belong to authenticated user"})
+		return
+	}
+	var request DeckCardsPatchRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	upsert := make([]deckEntity.Card, len(request.Upsert))
+	for index, card := range request.Upsert {
+		upsert[index] = deckEntity.Card{Name: card.Name, Quantity: card.Quantity}
+	}
+	d, err := h.service.PatchCards(id, upsert, request.Remove)
+	if err != nil {
+		if err.Error() == "deck not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "deck not found"})
+			return
+		}
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 			return
 		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
