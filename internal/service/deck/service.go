@@ -124,6 +124,10 @@ func (s *Service) SearchCommanders(query string) ([]CommanderSuggestion, error) 
 	return s.validator.SearchCommanders(query)
 }
 
+func (s *Service) SearchCards(query string) ([]deckEntity.Card, error) {
+	return s.validator.SearchCards(query)
+}
+
 func (s *Service) GetAll() ([]*deckEntity.Deck, error) {
 	decks, err := s.repo.GetAll()
 	if err != nil {

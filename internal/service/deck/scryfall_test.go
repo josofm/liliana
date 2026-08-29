@@ -59,6 +59,27 @@ func TestScryfallValidator_SearchCommandersFiltersEligibleCommanders(t *testing.
 	assert.Equal(t, "Atraxa, Praetors' Voice", result[0].Name)
 }
 
+func TestScryfallValidator_SearchCardsWithoutCommanderFilter(t *testing.T) {
+	server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		assert.Equal(t, "/cards/search", r.URL.Path)
+		assert.Equal(t, "sol ring", r.URL.Query().Get("q"))
+		assert.Equal(t, "name", r.URL.Query().Get("order"))
+		assert.Equal(t, "cards", r.URL.Query().Get("unique"))
+		w.Header().Set("Content-Type", "application/json")
+		_, _ = w.Write([]byte(`{"data":[{"oracle_id":"oracle-sol-ring","name":"Sol Ring","mana_cost":"{1}","type_line":"Artifact","color_identity":[],"image_uris":{"normal":"https://example.com/sol-ring.jpg"}}]}`))
+	}))
+	defer server.Close()
+
+	validator := NewScryfallValidatorWithBaseURL(server.Client(), server.URL)
+	cards, err := validator.SearchCards(" sol ring ")
+	require.NoError(t, err)
+	require.Len(t, cards, 1)
+	assert.Equal(t, "oracle-sol-ring", cards[0].OracleID)
+	assert.Equal(t, "Sol Ring", cards[0].Name)
+	assert.Equal(t, "Artifact", cards[0].TypeLine)
+	assert.Equal(t, "https://example.com/sol-ring.jpg", cards[0].ImageURI)
+}
+
 func TestScryfallValidator_ResolveCommanderSupportsGodAndPlaneswalker(t *testing.T) {
 	tests := []struct {
 		name       string

@@ -22,6 +22,7 @@ type CardValidator interface {
 	Validate(cards []deckEntity.Card) ([]deckEntity.Card, error)
 	ResolveCommander(name string) (deckEntity.Card, error)
 	SearchCommanders(query string) ([]CommanderSuggestion, error)
+	SearchCards(query string) ([]deckEntity.Card, error)
 }
 
 type CommanderSuggestion struct {
@@ -151,6 +152,42 @@ func (v *ScryfallValidator) SearchCommanders(query string) ([]CommanderSuggestio
 		}
 		card := cardFromScryfall(source)
 		result = append(result, CommanderSuggestion{Name: card.Name, ColorIdentity: card.ColorIdentity, ImageURI: card.ImageURI})
+	}
+	return result, nil
+}
+
+func (v *ScryfallValidator) SearchCards(query string) ([]deckEntity.Card, error) {
+	search := strings.TrimSpace(query)
+	req, err := http.NewRequest(http.MethodGet, v.baseURL+"/cards/search?q="+url.QueryEscape(search)+"&order=name&unique=cards", nil)
+	if err != nil {
+		return nil, err
+	}
+	req.Header.Set("Accept", "application/json;q=0.9,*/*;q=0.8")
+	req.Header.Set("User-Agent", "liliana/1.0 (https://github.com/josofm/liliana)")
+	v.mu.Lock()
+	defer v.mu.Unlock()
+	if wait := scryfallRequestInterval - time.Since(v.lastRequest); wait > 0 {
+		time.Sleep(wait)
+	}
+	resp, err := v.client.Do(req)
+	v.lastRequest = time.Now()
+	if err != nil {
+		return nil, fmt.Errorf("search cards with Scryfall: %w", err)
+	}
+	defer resp.Body.Close()
+	if resp.StatusCode == http.StatusNotFound {
+		return []deckEntity.Card{}, nil
+	}
+	if resp.StatusCode != http.StatusOK {
+		return nil, fmt.Errorf("search cards with Scryfall: status %d", resp.StatusCode)
+	}
+	var response scryfallSearchResponse
+	if err := json.NewDecoder(resp.Body).Decode(&response); err != nil {
+		return nil, fmt.Errorf("decode Scryfall card search: %w", err)
+	}
+	result := make([]deckEntity.Card, 0, len(response.Data))
+	for _, source := range response.Data {
+		result = append(result, cardFromScryfall(source))
 	}
 	return result, nil
 }

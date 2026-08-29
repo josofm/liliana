@@ -21,6 +21,10 @@ func (testCardValidator) SearchCommanders(string) ([]CommanderSuggestion, error)
 	return []CommanderSuggestion{{Name: "Thassa, God of the Sea", ColorIdentity: []string{"U"}}}, nil
 }
 
+func (testCardValidator) SearchCards(string) ([]deckEntity.Card, error) {
+	return []deckEntity.Card{{OracleID: "oracle-sol-ring", Name: "Sol Ring"}}, nil
+}
+
 func (testCardValidator) Validate(cards []deckEntity.Card) ([]deckEntity.Card, error) {
 	result := make([]deckEntity.Card, len(cards))
 	copy(result, cards)

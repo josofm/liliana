@@ -150,6 +150,7 @@ func setupDeckRoutes(rg RouterGroup, deckRepo deckRepo.Repository) {
 	group := rg.Group("/decks")
 	{
 		group.GET("/commanders", h.searchCommanders)
+		group.GET("/cards/search", h.searchCards)
 		group.POST("/", h.create)
 		group.GET("/", h.getAll)
 		group.GET("/:id", h.getByID)

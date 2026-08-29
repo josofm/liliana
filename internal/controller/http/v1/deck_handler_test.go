@@ -33,6 +33,10 @@ func (testCardValidator) SearchCommanders(string) ([]deckService.CommanderSugges
 	return []deckService.CommanderSuggestion{{Name: "Thassa, God of the Sea", ColorIdentity: []string{"U"}}}, nil
 }
 
+func (testCardValidator) SearchCards(string) ([]deckEntity.Card, error) {
+	return []deckEntity.Card{{OracleID: "oracle-sol-ring", Name: "Sol Ring", ImageURI: "https://example.com/sol-ring.jpg"}}, nil
+}
+
 func (testCardValidator) Validate(cards []deckEntity.Card) ([]deckEntity.Card, error) {
 	for index := range cards {
 		if cards[index].OracleID == "" {
@@ -149,6 +153,30 @@ func TestDeckHandler_SearchCommanders(t *testing.T) {
 
 	require.Equal(t, http.StatusOK, w.Code, w.Body.String())
 	assert.JSONEq(t, `[{"name":"Thassa, God of the Sea","color_identity":["U"]}]`, w.Body.String())
+}
+
+func TestDeckHandler_SearchCards(t *testing.T) {
+	router := setupDeckHandlerWithCardValidation()
+	req, err := http.NewRequest(http.MethodGet, "/decks/cards/search?q=sol", nil)
+	checkErr(t, err)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, req)
+
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	var cards []deckEntity.Card
+	checkErr(t, json.Unmarshal(response.Body.Bytes(), &cards))
+	require.Len(t, cards, 1)
+	assert.Equal(t, "oracle-sol-ring", cards[0].OracleID)
+	assert.Equal(t, "Sol Ring", cards[0].Name)
+}
+
+func TestDeckHandler_SearchCardsRequiresTwoCharacters(t *testing.T) {
+	router := setupDeckHandlerWithCardValidation()
+	req, err := http.NewRequest(http.MethodGet, "/decks/cards/search?q=s", nil)
+	checkErr(t, err)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, req)
+	assert.Equal(t, http.StatusBadRequest, response.Code)
 }
 
 func TestDeckHandler_Create_NonCommanderWithoutCommander(t *testing.T) {

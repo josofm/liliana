@@ -56,6 +56,7 @@ func NewDeckHandlerWithService(r *gin.Engine, service *deckService.Service) {
 	group := r.Group("/decks")
 	{
 		group.GET("/commanders", h.searchCommanders)
+		group.GET("/cards/search", h.searchCards)
 		group.POST("/", h.create)
 		group.GET("/", h.getAll)
 		group.GET("/:id", h.getByID)
@@ -64,6 +65,20 @@ func NewDeckHandlerWithService(r *gin.Engine, service *deckService.Service) {
 		group.PATCH("/:id/cards", h.patchCards)
 		group.DELETE("/:id", h.delete)
 	}
+}
+
+func (h *DeckHandler) searchCards(c *gin.Context) {
+	query := strings.TrimSpace(c.Query("q"))
+	if len([]rune(query)) < 2 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "query must contain at least 2 characters"})
+		return
+	}
+	cards, err := h.service.SearchCards(query)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "could not search cards"})
+		return
+	}
+	c.JSON(http.StatusOK, cards)
 }
 
 func (h *DeckHandler) searchCommanders(c *gin.Context) {

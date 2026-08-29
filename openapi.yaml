@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Liliana API
-  version: 1.5.0
+  version: 1.6.0
   description: |
     API para autenticação, gerenciamento de usuários e gerenciamento de decks
     de Magic: The Gathering. As rotas protegidas exigem um access token JWT.
@@ -373,6 +373,45 @@ paths:
           description: Deck excluído
         "401":
           $ref: "#/components/responses/Unauthorized"
+
+  /decks/cards/search:
+    get:
+      tags: [Decks]
+      summary: Busca cartas para adicionar a um deck
+      description: |
+        Consulta todas as cartas no Scryfall, sem restringir os resultados a
+        comandantes. Retorna Oracle ID, dados visuais e faces da carta quando
+        disponíveis. A consulta deve possuir ao menos dois caracteres.
+      operationId: searchCards
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+          example: sol ring
+      responses:
+        "200":
+          description: Cartas encontradas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Card"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "502":
+          description: Não foi possível consultar o Scryfall
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
 
   /decks/commanders:
     get:
