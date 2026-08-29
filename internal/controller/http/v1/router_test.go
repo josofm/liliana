@@ -32,6 +32,7 @@ func setupTestRouterV1() *gin.Engine {
 
 	// Criar config de teste
 	cfg := &config.Config{
+		HTTP: config.HTTPConfig{CORSAllowedOrigins: "https://example.com"},
 		JWT: config.JWTConfig{
 			SecretKey:     "test-secret",
 			AccessExpiry:  15 * time.Minute,
@@ -284,4 +285,21 @@ func TestRouter_NotFound(t *testing.T) {
 	router.ServeHTTP(w, req)
 
 	assert.Equal(t, http.StatusNotFound, w.Code)
+}
+
+func TestRouter_CORSPreflightAllowsPatch(t *testing.T) {
+	router := setupTestRouterV1()
+	req, err := http.NewRequest(http.MethodOptions, "/decks/1/cards", nil)
+	checkErr(t, err)
+	req.Header.Set("Origin", "https://example.com")
+	req.Header.Set("Access-Control-Request-Method", http.MethodPatch)
+	req.Header.Set("Access-Control-Request-Headers", "authorization,content-type")
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, req)
+
+	assert.Equal(t, http.StatusNoContent, response.Code)
+	assert.Equal(t, "https://example.com", response.Header().Get("Access-Control-Allow-Origin"))
+	assert.Contains(t, response.Header().Get("Access-Control-Allow-Methods"), http.MethodPatch)
+	assert.Contains(t, response.Header().Get("Access-Control-Allow-Headers"), "Authorization")
+	assert.Contains(t, response.Header().Get("Access-Control-Allow-Headers"), "Content-Type")
 }
