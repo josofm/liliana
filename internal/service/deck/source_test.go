@@ -21,13 +21,16 @@ func TestArchidektImporter_Import(t *testing.T) {
 			"categories":[
 				{"name":"Commander","includedInDeck":true},
 				{"name":"Mainboard","includedInDeck":true},
-				{"name":"Maybeboard","includedInDeck":false}
+				{"name":"Maybeboard","includedInDeck":true},
+				{"name":"Sideboard","includedInDeck":true}
 			],
 			"cards":[
 				{"categories":["Commander"],"quantity":1,"card":{"oracleCard":{"name":"Tymna the Weaver","uid":"id-1","colorIdentity":["White","Black"]}}},
 				{"categories":["Commander"],"quantity":1,"card":{"oracleCard":{"name":"Kraum, Ludevic's Opus","uid":"id-2","colorIdentity":["Blue","Red"]}}},
 				{"categories":["Mainboard"],"quantity":2,"card":{"oracleCard":{"name":"Forest","uid":"id-3","colorIdentity":["Green"]}}},
-				{"categories":["Maybeboard"],"quantity":1,"card":{"oracleCard":{"name":"Ignored Card","uid":"id-4","colorIdentity":[]}}}
+				{"categories":["Maybeboard"],"quantity":1,"card":{"oracleCard":{"name":"Ignored Maybe Card","uid":"id-4","colorIdentity":["Green"]}}},
+				{"categories":["Sideboard"],"quantity":1,"card":{"oracleCard":{"name":"Ignored Side Card","uid":"id-5","colorIdentity":["Green"]}}},
+				{"categories":["Mainboard","Maybeboard"],"quantity":1,"card":{"oracleCard":{"name":"Ignored Mixed Card","uid":"id-6","colorIdentity":["Green"]}}}
 			]
 		}`))
 	}))
