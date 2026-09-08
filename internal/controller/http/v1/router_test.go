@@ -222,6 +222,7 @@ func TestRouter_DeckEndpoints(t *testing.T) {
 	checkErr(t, err)
 	req.Header.Set("Content-Type", "application/json")
 	req.Header.Set("Authorization", "Bearer "+accessToken)
+	req.Header.Set("Idempotency-Key", "4f4f60d0-59e4-4f3c-90b2-47e6d2bd8938")
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
