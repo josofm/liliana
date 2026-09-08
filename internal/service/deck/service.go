@@ -120,6 +120,10 @@ func (s *Service) Create(deck *deckEntity.Deck) error {
 	return s.repo.Create(deck)
 }
 
+func (s *Service) GetByIdempotencyKey(ownerID int64, key string) (*deckEntity.Deck, error) {
+	return s.repo.GetByIdempotencyKey(ownerID, key)
+}
+
 func (s *Service) SearchCommanders(query string) ([]CommanderSuggestion, error) {
 	return s.validator.SearchCommanders(query)
 }

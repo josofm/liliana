@@ -6,7 +6,9 @@ CREATE TABLE decks (
 	commander TEXT,
 	commander_image_uri TEXT NOT NULL DEFAULT '',
 	owner_id BIGINT NOT NULL,
-	source_link TEXT NOT NULL DEFAULT ''
+	source_link TEXT NOT NULL DEFAULT '',
+	idempotency_key UUID,
+	UNIQUE (owner_id, idempotency_key)
 );
 
 CREATE INDEX decks_owner_id_idx ON decks (owner_id);

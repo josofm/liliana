@@ -19,14 +19,29 @@ func (r *postgresRepo) Create(d *deckEntity.Deck) error {
 		return err
 	}
 	defer tx.Rollback()
-	const query = `INSERT INTO decks (name, color, format, commander, commander_image_uri, owner_id, source_link) VALUES ($1,$2,$3,$4,$5,$6,$7) RETURNING id`
-	if err := tx.QueryRow(query, d.Name, d.Color, d.Format, d.Commander, d.CommanderImageURI, d.OwnerID, d.SourceLink).Scan(&d.ID); err != nil {
+	const query = `INSERT INTO decks (name, color, format, commander, commander_image_uri, owner_id, source_link, idempotency_key) VALUES ($1,$2,$3,$4,$5,$6,$7,NULLIF($8,'')::uuid) RETURNING id`
+	if err := tx.QueryRow(query, d.Name, d.Color, d.Format, d.Commander, d.CommanderImageURI, d.OwnerID, d.SourceLink, d.IdempotencyKey).Scan(&d.ID); err != nil {
 		return err
 	}
 	if err := saveCards(tx, d); err != nil {
 		return err
 	}
 	return tx.Commit()
+}
+
+func (r *postgresRepo) GetByIdempotencyKey(ownerID int64, key string) (*deckEntity.Deck, error) {
+	d := &deckEntity.Deck{}
+	err := r.db.QueryRow(`SELECT id,name,color,format,commander,commander_image_uri,owner_id,source_link,idempotency_key FROM decks WHERE owner_id=$1 AND idempotency_key=$2`, ownerID, key).Scan(&d.ID, &d.Name, &d.Color, &d.Format, &d.Commander, &d.CommanderImageURI, &d.OwnerID, &d.SourceLink, &d.IdempotencyKey)
+	if errors.Is(err, sql.ErrNoRows) {
+		return nil, ErrIdempotencyKeyNotFound
+	}
+	if err != nil {
+		return nil, err
+	}
+	if err := loadCards(r.db, d); err != nil {
+		return nil, err
+	}
+	return d, nil
 }
 
 func (r *postgresRepo) GetAll() ([]*deckEntity.Deck, error) {

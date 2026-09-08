@@ -1,7 +1,9 @@
 package v1
 
 import (
+	"errors"
 	"net/http"
+	"regexp"
 	"strconv"
 	"strings"
 
@@ -11,6 +13,8 @@ import (
 	deckService "github.com/josofm/liliana/internal/service/deck"
 	"github.com/josofm/liliana/internal/validator"
 )
+
+var idempotencyKeyPattern = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 
 // DeckRequest represents the incoming deck data for validation
 type DeckRequest struct {
@@ -96,6 +100,11 @@ func (h *DeckHandler) searchCommanders(c *gin.Context) {
 }
 
 func (h *DeckHandler) create(c *gin.Context) {
+	idempotencyKey := strings.TrimSpace(c.GetHeader("Idempotency-Key"))
+	if !idempotencyKeyPattern.MatchString(idempotencyKey) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Idempotency-Key header must be a valid UUID"})
+		return
+	}
 	var request DeckRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -110,15 +119,23 @@ func (h *DeckHandler) create(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
 		return
 	}
+	if existing, err := h.service.GetByIdempotencyKey(ownerID, idempotencyKey); err == nil {
+		c.JSON(http.StatusCreated, existing)
+		return
+	} else if !errors.Is(err, deckRepo.ErrIdempotencyKeyNotFound) {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not verify idempotency key"})
+		return
+	}
 
 	// Convert to entity
 	deck := deckEntity.Deck{
-		Name:       request.Name,
-		Color:      request.Color,
-		Format:     request.Format,
-		Commander:  request.Commander,
-		OwnerID:    ownerID,
-		SourceLink: request.SourceLink,
+		Name:           request.Name,
+		Color:          request.Color,
+		Format:         request.Format,
+		Commander:      request.Commander,
+		OwnerID:        ownerID,
+		SourceLink:     request.SourceLink,
+		IdempotencyKey: idempotencyKey,
 	}
 	if request.Cards != "" {
 		cards, err := deckService.ParseCardList(request.Cards)
@@ -139,6 +156,12 @@ func (h *DeckHandler) create(c *gin.Context) {
 
 	err := h.service.Create(&deck)
 	if err != nil {
+		// Another request with the same key may have committed while this one
+		// was preparing. Return its result instead of exposing the conflict.
+		if existing, lookupErr := h.service.GetByIdempotencyKey(ownerID, idempotencyKey); lookupErr == nil {
+			c.JSON(http.StatusCreated, existing)
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create deck"})
 		return
 	}

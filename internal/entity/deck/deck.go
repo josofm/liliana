@@ -10,6 +10,7 @@ type Deck struct {
 	CommanderImageURI string `json:"commander_image_uri" validate:"omitempty,url"`
 	OwnerID           int64  `json:"owner_id" validate:"required,gt=0"`
 	SourceLink        string `json:"source_link" validate:"omitempty,url"` // ex: https://archidekt.com/decks/123456
+	IdempotencyKey    string `json:"-"`
 	Cards             []Card `json:"cards"`
 }
 

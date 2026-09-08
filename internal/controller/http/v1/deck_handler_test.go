@@ -112,6 +112,49 @@ func TestDeckHandler_Create(t *testing.T) {
 	assert.Equal(t, int64(1), response.ID)
 }
 
+func TestDeckHandler_CreateReturnsExistingDeckForRepeatedIdempotencyKey(t *testing.T) {
+	router := setupDeckHandlerWithCardValidation()
+	body := []byte(`{"name":"Idempotent deck","format":"commander","commander":"Thassa"}`)
+	key := "4f4f60d0-59e4-4f3c-90b2-47e6d2bd8938"
+
+	create := func() *httptest.ResponseRecorder {
+		req, err := http.NewRequest(http.MethodPost, "/decks/", bytes.NewReader(body))
+		checkErr(t, err)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Idempotency-Key", key)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, req)
+		return response
+	}
+
+	first := create()
+	second := create()
+	require.Equal(t, http.StatusCreated, first.Code, first.Body.String())
+	require.Equal(t, http.StatusCreated, second.Code, second.Body.String())
+	var firstDeck, secondDeck deckEntity.Deck
+	checkErr(t, json.Unmarshal(first.Body.Bytes(), &firstDeck))
+	checkErr(t, json.Unmarshal(second.Body.Bytes(), &secondDeck))
+	assert.Equal(t, firstDeck.ID, secondDeck.ID)
+
+	listRequest, err := http.NewRequest(http.MethodGet, "/decks/", nil)
+	checkErr(t, err)
+	listResponse := httptest.NewRecorder()
+	router.ServeHTTP(listResponse, listRequest)
+	var decks []deckEntity.Deck
+	checkErr(t, json.Unmarshal(listResponse.Body.Bytes(), &decks))
+	assert.Len(t, decks, 1)
+}
+
+func TestDeckHandler_CreateRequiresValidIdempotencyKey(t *testing.T) {
+	router := setupDeckHandlerWithCardValidation()
+	req, err := http.NewRequest(http.MethodPost, "/decks/", bytes.NewReader([]byte(`{"name":"Deck"}`)))
+	checkErr(t, err)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, req)
+	assert.Equal(t, http.StatusBadRequest, response.Code)
+	assert.JSONEq(t, `{"error":"Idempotency-Key header must be a valid UUID"}`, response.Body.String())
+}
+
 func TestDeckHandler_Create_IgnoresOwnerIDFromJSON(t *testing.T) {
 	router := setupDeckHandlerWithCardValidation()
 	body := []byte(`{"name":"Test Deck","format":"commander","commander":"Atraxa, Praetors' Voice","owner_id":999}`)

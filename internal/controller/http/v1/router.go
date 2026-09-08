@@ -82,7 +82,7 @@ func corsMiddleware(allowedOriginsConfig string) gin.HandlerFunc {
 				c.Header("Vary", "Origin")
 			}
 			c.Header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
-			c.Header("Access-Control-Allow-Headers", "Origin,Content-Type,Authorization")
+			c.Header("Access-Control-Allow-Headers", "Origin,Content-Type,Authorization,Idempotency-Key")
 		}
 
 		if c.Request.Method == http.MethodOptions {

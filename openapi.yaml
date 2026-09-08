@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Liliana API
-  version: 1.6.0
+  version: 1.7.0
   description: |
     API para autenticação, gerenciamento de usuários e gerenciamento de decks
     de Magic: The Gathering. As rotas protegidas exigem um access token JWT.
@@ -230,6 +230,10 @@ paths:
         Cria um deck para o usuário identificado pelo access token. O cliente não
         envia `owner_id`; esse valor é derivado da claim `user_id` do JWT.
 
+        `Idempotency-Key` deve ser um UUID novo para cada intenção de criação e
+        deve ser reutilizado nos retries da mesma operação. Uma repetição retorna
+        o deck da primeira chamada sem importar ou inserir novamente.
+
         Na criação manual de um deck commander, `name`, `format` e `commander`
         são obrigatórios. O comandante é procurado pelo nome exato no Scryfall,
         sua elegibilidade é validada e a identidade de cor do deck é derivada
@@ -385,6 +389,14 @@ paths:
       operationId: searchCards
       security:
         - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: UUID estável entre tentativas da mesma criação
+          schema:
+            type: string
+            format: uuid
       parameters:
         - name: q
           in: query

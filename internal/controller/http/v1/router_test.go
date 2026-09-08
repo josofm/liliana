@@ -293,7 +293,7 @@ func TestRouter_CORSPreflightAllowsPatch(t *testing.T) {
 	checkErr(t, err)
 	req.Header.Set("Origin", "https://example.com")
 	req.Header.Set("Access-Control-Request-Method", http.MethodPatch)
-	req.Header.Set("Access-Control-Request-Headers", "authorization,content-type")
+	req.Header.Set("Access-Control-Request-Headers", "authorization,content-type,idempotency-key")
 	response := httptest.NewRecorder()
 	router.ServeHTTP(response, req)
 
@@ -302,4 +302,5 @@ func TestRouter_CORSPreflightAllowsPatch(t *testing.T) {
 	assert.Contains(t, response.Header().Get("Access-Control-Allow-Methods"), http.MethodPatch)
 	assert.Contains(t, response.Header().Get("Access-Control-Allow-Headers"), "Authorization")
 	assert.Contains(t, response.Header().Get("Access-Control-Allow-Headers"), "Content-Type")
+	assert.Contains(t, response.Header().Get("Access-Control-Allow-Headers"), "Idempotency-Key")
 }
