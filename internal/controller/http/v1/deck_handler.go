@@ -1,8 +1,11 @@
 package v1
 
 import (
+	"errors"
 	"net/http"
+	"regexp"
 	"strconv"
+	"strings"
 
 	"github.com/gin-gonic/gin"
 	deckEntity "github.com/josofm/liliana/internal/entity/deck"
@@ -10,6 +13,8 @@ import (
 	deckService "github.com/josofm/liliana/internal/service/deck"
 	"github.com/josofm/liliana/internal/validator"
 )
+
+var idempotencyKeyPattern = regexp.MustCompile(`(?i)^[0-9a-f]{8}-[0-9a-f]{4}-[1-8][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$`)
 
 // DeckRequest represents the incoming deck data for validation
 type DeckRequest struct {
@@ -26,6 +31,16 @@ type DeckRequest struct {
 
 type DeckCardsRequest struct {
 	Cards string `json:"cards" validate:"required"`
+}
+
+type DeckCardUpsertRequest struct {
+	Name     string `json:"name"`
+	Quantity int    `json:"quantity"`
+}
+
+type DeckCardsPatchRequest struct {
+	Upsert []DeckCardUpsertRequest `json:"upsert"`
+	Remove []string                `json:"remove"`
 }
 
 type DeckHandler struct {
@@ -45,13 +60,29 @@ func NewDeckHandlerWithService(r *gin.Engine, service *deckService.Service) {
 	group := r.Group("/decks")
 	{
 		group.GET("/commanders", h.searchCommanders)
+		group.GET("/cards/search", h.searchCards)
 		group.POST("/", h.create)
 		group.GET("/", h.getAll)
 		group.GET("/:id", h.getByID)
 		group.PUT("/:id", h.update)
 		group.POST("/:id/cards", h.addCards)
+		group.PATCH("/:id/cards", h.patchCards)
 		group.DELETE("/:id", h.delete)
 	}
+}
+
+func (h *DeckHandler) searchCards(c *gin.Context) {
+	query := strings.TrimSpace(c.Query("q"))
+	if len([]rune(query)) < 2 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "query must contain at least 2 characters"})
+		return
+	}
+	cards, err := h.service.SearchCards(query)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "could not search cards"})
+		return
+	}
+	c.JSON(http.StatusOK, cards)
 }
 
 func (h *DeckHandler) searchCommanders(c *gin.Context) {
@@ -69,6 +100,11 @@ func (h *DeckHandler) searchCommanders(c *gin.Context) {
 }
 
 func (h *DeckHandler) create(c *gin.Context) {
+	idempotencyKey := strings.TrimSpace(c.GetHeader("Idempotency-Key"))
+	if !idempotencyKeyPattern.MatchString(idempotencyKey) {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Idempotency-Key header must be a valid UUID"})
+		return
+	}
 	var request DeckRequest
 	if err := c.ShouldBindJSON(&request); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
@@ -83,15 +119,23 @@ func (h *DeckHandler) create(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
 		return
 	}
+	if existing, err := h.service.GetByIdempotencyKey(ownerID, idempotencyKey); err == nil {
+		c.JSON(http.StatusCreated, existing)
+		return
+	} else if !errors.Is(err, deckRepo.ErrIdempotencyKeyNotFound) {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not verify idempotency key"})
+		return
+	}
 
 	// Convert to entity
 	deck := deckEntity.Deck{
-		Name:       request.Name,
-		Color:      request.Color,
-		Format:     request.Format,
-		Commander:  request.Commander,
-		OwnerID:    ownerID,
-		SourceLink: request.SourceLink,
+		Name:           request.Name,
+		Color:          request.Color,
+		Format:         request.Format,
+		Commander:      request.Commander,
+		OwnerID:        ownerID,
+		SourceLink:     request.SourceLink,
+		IdempotencyKey: idempotencyKey,
 	}
 	if request.Cards != "" {
 		cards, err := deckService.ParseCardList(request.Cards)
@@ -112,6 +156,12 @@ func (h *DeckHandler) create(c *gin.Context) {
 
 	err := h.service.Create(&deck)
 	if err != nil {
+		// Another request with the same key may have committed while this one
+		// was preparing. Return its result instead of exposing the conflict.
+		if existing, lookupErr := h.service.GetByIdempotencyKey(ownerID, idempotencyKey); lookupErr == nil {
+			c.JSON(http.StatusCreated, existing)
+			return
+		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not create deck"})
 		return
 	}
@@ -174,7 +224,12 @@ func (h *DeckHandler) update(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not update deck"})
 		return
 	}
-	c.JSON(http.StatusOK, deck)
+	updated, err := h.service.GetByID(id)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "could not load updated deck"})
+		return
+	}
+	c.JSON(http.StatusOK, updated)
 }
 
 func (h *DeckHandler) delete(c *gin.Context) {
@@ -207,6 +262,51 @@ func (h *DeckHandler) addCards(c *gin.Context) {
 	if err != nil {
 		if err.Error() == "deck not found" {
 			c.JSON(http.StatusNotFound, gin.H{"error": "deck not found"})
+			return
+		}
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, d)
+}
+
+func (h *DeckHandler) patchCards(c *gin.Context) {
+	id, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil || id <= 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid deck id"})
+		return
+	}
+	ownerID, exists := GetUserIDFromContext(c)
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
+	existing, err := h.service.GetByID(id)
+	if err != nil {
+		c.JSON(http.StatusNotFound, gin.H{"error": "deck not found"})
+		return
+	}
+	if existing.OwnerID != ownerID {
+		c.JSON(http.StatusForbidden, gin.H{"error": "deck does not belong to authenticated user"})
+		return
+	}
+	var request DeckCardsPatchRequest
+	if err := c.ShouldBindJSON(&request); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		return
+	}
+	upsert := make([]deckEntity.Card, len(request.Upsert))
+	for index, card := range request.Upsert {
+		upsert[index] = deckEntity.Card{Name: card.Name, Quantity: card.Quantity}
+	}
+	d, err := h.service.PatchCards(id, upsert, request.Remove)
+	if err != nil {
+		if err.Error() == "deck not found" {
+			c.JSON(http.StatusNotFound, gin.H{"error": "deck not found"})
+			return
+		}
+		if strings.Contains(err.Error(), "not found") {
+			c.JSON(http.StatusUnprocessableEntity, gin.H{"error": err.Error()})
 			return
 		}
 		c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})

@@ -128,6 +128,7 @@ func TestDeckHandler_Validation(t *testing.T) {
 		expectedStatus int
 		shouldHaveID   bool
 		expectedColor  string
+		idempotencyKey string
 	}{
 		{
 			name: "valid_deck",
@@ -139,6 +140,7 @@ func TestDeckHandler_Validation(t *testing.T) {
 			expectedStatus: http.StatusCreated,
 			shouldHaveID:   true,
 			expectedColor:  "WUBG",
+			idempotencyKey: "4f4f60d0-59e4-4f3c-90b2-47e6d2bd8931",
 		},
 		{
 			name: "valid_URL",
@@ -152,6 +154,7 @@ func TestDeckHandler_Validation(t *testing.T) {
 			expectedStatus: http.StatusCreated,
 			shouldHaveID:   true,
 			expectedColor:  "WUBRG",
+			idempotencyKey: "4f4f60d0-59e4-4f3c-90b2-47e6d2bd8932",
 		},
 		{
 			name: "invalid_URL",
@@ -164,6 +167,7 @@ func TestDeckHandler_Validation(t *testing.T) {
 			},
 			expectedStatus: http.StatusBadRequest,
 			shouldHaveID:   false,
+			idempotencyKey: "4f4f60d0-59e4-4f3c-90b2-47e6d2bd8933",
 		},
 	}
 
@@ -175,6 +179,7 @@ func TestDeckHandler_Validation(t *testing.T) {
 			req, err := http.NewRequest("POST", "/decks/", bytes.NewBuffer(body))
 			assert.NoError(t, err)
 			req.Header.Set("Content-Type", "application/json")
+			req.Header.Set("Idempotency-Key", tt.idempotencyKey)
 
 			w := httptest.NewRecorder()
 			router.ServeHTTP(w, req)

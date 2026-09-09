@@ -21,6 +21,8 @@ import (
 
 type testCardValidator struct{}
 
+const testIdempotencyKey = "4f4f60d0-59e4-4f3c-90b2-47e6d2bd8938"
+
 func (testCardValidator) ResolveCommander(name string) (deckEntity.Card, error) {
 	colors := []string{"U"}
 	if name == "Atraxa, Praetors' Voice" || name == "Atraxa" {
@@ -31,6 +33,10 @@ func (testCardValidator) ResolveCommander(name string) (deckEntity.Card, error) 
 
 func (testCardValidator) SearchCommanders(string) ([]deckService.CommanderSuggestion, error) {
 	return []deckService.CommanderSuggestion{{Name: "Thassa, God of the Sea", ColorIdentity: []string{"U"}}}, nil
+}
+
+func (testCardValidator) SearchCards(string) ([]deckEntity.Card, error) {
+	return []deckEntity.Card{{OracleID: "oracle-sol-ring", Name: "Sol Ring", ImageURI: "https://example.com/sol-ring.jpg"}}, nil
 }
 
 func (testCardValidator) Validate(cards []deckEntity.Card) ([]deckEntity.Card, error) {
@@ -90,6 +96,7 @@ func TestDeckHandler_Create(t *testing.T) {
 	req, err := http.NewRequest("POST", "/decks/", bytes.NewBuffer(body))
 	checkErr(t, err)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", testIdempotencyKey)
 
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -108,12 +115,56 @@ func TestDeckHandler_Create(t *testing.T) {
 	assert.Equal(t, int64(1), response.ID)
 }
 
+func TestDeckHandler_CreateReturnsExistingDeckForRepeatedIdempotencyKey(t *testing.T) {
+	router := setupDeckHandlerWithCardValidation()
+	body := []byte(`{"name":"Idempotent deck","format":"commander","commander":"Thassa"}`)
+	key := "4f4f60d0-59e4-4f3c-90b2-47e6d2bd8938"
+
+	create := func() *httptest.ResponseRecorder {
+		req, err := http.NewRequest(http.MethodPost, "/decks/", bytes.NewReader(body))
+		checkErr(t, err)
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("Idempotency-Key", key)
+		response := httptest.NewRecorder()
+		router.ServeHTTP(response, req)
+		return response
+	}
+
+	first := create()
+	second := create()
+	require.Equal(t, http.StatusCreated, first.Code, first.Body.String())
+	require.Equal(t, http.StatusCreated, second.Code, second.Body.String())
+	var firstDeck, secondDeck deckEntity.Deck
+	checkErr(t, json.Unmarshal(first.Body.Bytes(), &firstDeck))
+	checkErr(t, json.Unmarshal(second.Body.Bytes(), &secondDeck))
+	assert.Equal(t, firstDeck.ID, secondDeck.ID)
+
+	listRequest, err := http.NewRequest(http.MethodGet, "/decks/", nil)
+	checkErr(t, err)
+	listResponse := httptest.NewRecorder()
+	router.ServeHTTP(listResponse, listRequest)
+	var decks []deckEntity.Deck
+	checkErr(t, json.Unmarshal(listResponse.Body.Bytes(), &decks))
+	assert.Len(t, decks, 1)
+}
+
+func TestDeckHandler_CreateRequiresValidIdempotencyKey(t *testing.T) {
+	router := setupDeckHandlerWithCardValidation()
+	req, err := http.NewRequest(http.MethodPost, "/decks/", bytes.NewReader([]byte(`{"name":"Deck"}`)))
+	checkErr(t, err)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, req)
+	assert.Equal(t, http.StatusBadRequest, response.Code)
+	assert.JSONEq(t, `{"error":"Idempotency-Key header must be a valid UUID"}`, response.Body.String())
+}
+
 func TestDeckHandler_Create_IgnoresOwnerIDFromJSON(t *testing.T) {
 	router := setupDeckHandlerWithCardValidation()
 	body := []byte(`{"name":"Test Deck","format":"commander","commander":"Atraxa, Praetors' Voice","owner_id":999}`)
 	req, err := http.NewRequest(http.MethodPost, "/decks/", bytes.NewReader(body))
 	checkErr(t, err)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", testIdempotencyKey)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -133,6 +184,7 @@ func TestDeckHandler_Create_RequiresAuthenticatedUser(t *testing.T) {
 	req, err := http.NewRequest(http.MethodPost, "/decks/", bytes.NewReader(body))
 	checkErr(t, err)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", testIdempotencyKey)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 
@@ -151,6 +203,30 @@ func TestDeckHandler_SearchCommanders(t *testing.T) {
 	assert.JSONEq(t, `[{"name":"Thassa, God of the Sea","color_identity":["U"]}]`, w.Body.String())
 }
 
+func TestDeckHandler_SearchCards(t *testing.T) {
+	router := setupDeckHandlerWithCardValidation()
+	req, err := http.NewRequest(http.MethodGet, "/decks/cards/search?q=sol", nil)
+	checkErr(t, err)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, req)
+
+	require.Equal(t, http.StatusOK, response.Code, response.Body.String())
+	var cards []deckEntity.Card
+	checkErr(t, json.Unmarshal(response.Body.Bytes(), &cards))
+	require.Len(t, cards, 1)
+	assert.Equal(t, "oracle-sol-ring", cards[0].OracleID)
+	assert.Equal(t, "Sol Ring", cards[0].Name)
+}
+
+func TestDeckHandler_SearchCardsRequiresTwoCharacters(t *testing.T) {
+	router := setupDeckHandlerWithCardValidation()
+	req, err := http.NewRequest(http.MethodGet, "/decks/cards/search?q=s", nil)
+	checkErr(t, err)
+	response := httptest.NewRecorder()
+	router.ServeHTTP(response, req)
+	assert.Equal(t, http.StatusBadRequest, response.Code)
+}
+
 func TestDeckHandler_Create_NonCommanderWithoutCommander(t *testing.T) {
 	router := setupDeckHandler()
 
@@ -167,6 +243,7 @@ func TestDeckHandler_Create_NonCommanderWithoutCommander(t *testing.T) {
 	req, err := http.NewRequest("POST", "/decks/", bytes.NewBuffer(body))
 	checkErr(t, err)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", testIdempotencyKey)
 
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -191,6 +268,7 @@ func TestDeckHandler_CreateManualWithCards(t *testing.T) {
 	req, err := http.NewRequest(http.MethodPost, "/decks/", bytes.NewBuffer(body))
 	checkErr(t, err)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", testIdempotencyKey)
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
 	assert.Equal(t, http.StatusCreated, w.Code)
@@ -209,6 +287,7 @@ func TestDeckHandler_AddCards(t *testing.T) {
 	createRequest, err := http.NewRequest(http.MethodPost, "/decks/", bytes.NewBuffer(body))
 	checkErr(t, err)
 	createRequest.Header.Set("Content-Type", "application/json")
+	createRequest.Header.Set("Idempotency-Key", testIdempotencyKey)
 	createResponse := httptest.NewRecorder()
 	router.ServeHTTP(createResponse, createRequest)
 	assert.Equal(t, http.StatusCreated, createResponse.Code)
@@ -227,6 +306,37 @@ func TestDeckHandler_AddCards(t *testing.T) {
 	assert.Len(t, response.Cards, 2)
 }
 
+func TestDeckHandler_PatchCards(t *testing.T) {
+	router := setupDeckHandlerWithCardValidation()
+	createBody, err := json.Marshal(v1.DeckRequest{Name: "Auras", Format: "commander", Commander: "Thassa", Cards: "1 Aqueous Form"})
+	checkErr(t, err)
+	createRequest, err := http.NewRequest(http.MethodPost, "/decks/", bytes.NewReader(createBody))
+	checkErr(t, err)
+	createRequest.Header.Set("Content-Type", "application/json")
+	createRequest.Header.Set("Idempotency-Key", testIdempotencyKey)
+	createResponse := httptest.NewRecorder()
+	router.ServeHTTP(createResponse, createRequest)
+	require.Equal(t, http.StatusCreated, createResponse.Code, createResponse.Body.String())
+
+	patchBody, err := json.Marshal(v1.DeckCardsPatchRequest{
+		Upsert: []v1.DeckCardUpsertRequest{{Name: "Vorrac Battlehorns", Quantity: 2}},
+		Remove: []string{"oracle-Aqueous Form"},
+	})
+	checkErr(t, err)
+	patchRequest, err := http.NewRequest(http.MethodPatch, "/decks/1/cards", bytes.NewReader(patchBody))
+	checkErr(t, err)
+	patchRequest.Header.Set("Content-Type", "application/json")
+	patchResponse := httptest.NewRecorder()
+	router.ServeHTTP(patchResponse, patchRequest)
+
+	require.Equal(t, http.StatusOK, patchResponse.Code, patchResponse.Body.String())
+	var response deckEntity.Deck
+	checkErr(t, json.Unmarshal(patchResponse.Body.Bytes(), &response))
+	require.Len(t, response.Cards, 1)
+	assert.Equal(t, "Vorrac Battlehorns", response.Cards[0].Name)
+	assert.Equal(t, 2, response.Cards[0].Quantity)
+}
+
 func TestDeckHandler_CreateManualWithValidatedCards(t *testing.T) {
 	router := setupDeckHandlerWithCardValidation()
 	requestBody := v1.DeckRequest{
@@ -238,6 +348,7 @@ func TestDeckHandler_CreateManualWithValidatedCards(t *testing.T) {
 	request, err := http.NewRequest(http.MethodPost, "/decks/", bytes.NewBuffer(body))
 	checkErr(t, err)
 	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Idempotency-Key", testIdempotencyKey)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 	require.Equal(t, http.StatusCreated, recorder.Code, recorder.Body.String())
@@ -275,6 +386,7 @@ func TestDeckHandler_CreateFromArchidektWithCards(t *testing.T) {
 	request, err := http.NewRequest(http.MethodPost, "/decks/", bytes.NewBuffer(body))
 	checkErr(t, err)
 	request.Header.Set("Content-Type", "application/json")
+	request.Header.Set("Idempotency-Key", testIdempotencyKey)
 	recorder := httptest.NewRecorder()
 	router.ServeHTTP(recorder, request)
 	require.Equal(t, http.StatusCreated, recorder.Code, recorder.Body.String())
@@ -295,6 +407,7 @@ func TestDeckHandler_Create_InvalidJSON(t *testing.T) {
 	req, err := http.NewRequest("POST", "/decks/", bytes.NewBuffer([]byte("invalid json")))
 	checkErr(t, err)
 	req.Header.Set("Content-Type", "application/json")
+	req.Header.Set("Idempotency-Key", testIdempotencyKey)
 
 	w := httptest.NewRecorder()
 	router.ServeHTTP(w, req)
@@ -315,6 +428,7 @@ func TestDeckHandler_GetAll(t *testing.T) {
 	req1, err := http.NewRequest("POST", "/decks/", bytes.NewBuffer(body1))
 	checkErr(t, err)
 	req1.Header.Set("Content-Type", "application/json")
+	req1.Header.Set("Idempotency-Key", "4f4f60d0-59e4-4f3c-90b2-47e6d2bd8931")
 	w1 := httptest.NewRecorder()
 	router.ServeHTTP(w1, req1)
 	assert.Equal(t, http.StatusCreated, w1.Code)
@@ -325,6 +439,7 @@ func TestDeckHandler_GetAll(t *testing.T) {
 	req2, err := http.NewRequest("POST", "/decks/", bytes.NewBuffer(body2))
 	checkErr(t, err)
 	req2.Header.Set("Content-Type", "application/json")
+	req2.Header.Set("Idempotency-Key", "4f4f60d0-59e4-4f3c-90b2-47e6d2bd8932")
 	w2 := httptest.NewRecorder()
 	router.ServeHTTP(w2, req2)
 	assert.Equal(t, http.StatusCreated, w2.Code)
@@ -353,6 +468,7 @@ func TestDeckHandler_GetByID(t *testing.T) {
 	req1, err := http.NewRequest("POST", "/decks/", bytes.NewBuffer(body))
 	checkErr(t, err)
 	req1.Header.Set("Content-Type", "application/json")
+	req1.Header.Set("Idempotency-Key", testIdempotencyKey)
 	w1 := httptest.NewRecorder()
 	router.ServeHTTP(w1, req1)
 	assert.Equal(t, http.StatusCreated, w1.Code)
@@ -395,6 +511,7 @@ func TestDeckHandler_Update(t *testing.T) {
 	req1, err := http.NewRequest("POST", "/decks/", bytes.NewBuffer(body1))
 	checkErr(t, err)
 	req1.Header.Set("Content-Type", "application/json")
+	req1.Header.Set("Idempotency-Key", testIdempotencyKey)
 	w1 := httptest.NewRecorder()
 	router.ServeHTTP(w1, req1)
 	assert.Equal(t, http.StatusCreated, w1.Code)
@@ -443,6 +560,7 @@ func TestDeckHandler_Delete(t *testing.T) {
 	req1, err := http.NewRequest("POST", "/decks/", bytes.NewBuffer(body))
 	checkErr(t, err)
 	req1.Header.Set("Content-Type", "application/json")
+	req1.Header.Set("Idempotency-Key", testIdempotencyKey)
 	w1 := httptest.NewRecorder()
 	router.ServeHTTP(w1, req1)
 	assert.Equal(t, http.StatusCreated, w1.Code)

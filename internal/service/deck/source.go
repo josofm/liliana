@@ -107,7 +107,7 @@ func (i *ArchidektImporter) Import(sourceLink string) (*deckEntity.Deck, error) 
 	cards := make([]deckEntity.Card, 0, len(source.Cards))
 	commanders := make([]string, 0, 2)
 	for _, sourceCard := range source.Cards {
-		if !cardIsIncluded(sourceCard.Categories, includedCategories) || sourceCard.Quantity <= 0 || sourceCard.Card.OracleCard.Name == "" {
+		if cardIsOutsideMainDeck(sourceCard.Categories) || !cardIsIncluded(sourceCard.Categories, includedCategories) || sourceCard.Quantity <= 0 || sourceCard.Card.OracleCard.Name == "" {
 			continue
 		}
 		card := deckEntity.Card{
@@ -134,6 +134,10 @@ func (i *ArchidektImporter) Import(sourceLink string) (*deckEntity.Deck, error) 
 		Commander: strings.Join(commanders, " / "),
 		Cards:     cards,
 	}, nil
+}
+
+func cardIsOutsideMainDeck(categories []string) bool {
+	return containsCategory(categories, "Maybeboard") || containsCategory(categories, "Sideboard")
 }
 
 func mergeCardsByOracleID(cards []deckEntity.Card) []deckEntity.Card {

@@ -81,8 +81,8 @@ func corsMiddleware(allowedOriginsConfig string) gin.HandlerFunc {
 				c.Header("Access-Control-Allow-Origin", origin)
 				c.Header("Vary", "Origin")
 			}
-			c.Header("Access-Control-Allow-Methods", "GET,POST,PUT,DELETE,OPTIONS")
-			c.Header("Access-Control-Allow-Headers", "Authorization,Content-Type")
+			c.Header("Access-Control-Allow-Methods", "GET,POST,PUT,PATCH,DELETE,OPTIONS")
+			c.Header("Access-Control-Allow-Headers", "Origin,Content-Type,Authorization,Idempotency-Key")
 		}
 
 		if c.Request.Method == http.MethodOptions {
@@ -150,11 +150,13 @@ func setupDeckRoutes(rg RouterGroup, deckRepo deckRepo.Repository) {
 	group := rg.Group("/decks")
 	{
 		group.GET("/commanders", h.searchCommanders)
+		group.GET("/cards/search", h.searchCards)
 		group.POST("/", h.create)
 		group.GET("/", h.getAll)
 		group.GET("/:id", h.getByID)
 		group.PUT("/:id", h.update)
 		group.POST("/:id/cards", h.addCards)
+		group.PATCH("/:id/cards", h.patchCards)
 		group.DELETE("/:id", h.delete)
 	}
 }

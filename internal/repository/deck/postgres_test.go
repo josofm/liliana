@@ -66,6 +66,7 @@ func TestPostgresRepo_Create(t *testing.T) {
 		Cards: []deckEntity.Card{{
 			OracleID: "1b8d0a2b-79ab-4a2f-9d2f-0e6d5dc7c461", Name: "Aqueous Form", Quantity: 2,
 			ManaCost: "{U}", TypeLine: "Enchantment — Aura", ColorIdentity: []string{"U"},
+			CardFaces: []deckEntity.CardFace{{Name: "Front", ImageURI: "https://example.com/front.jpg"}, {Name: "Back", ImageURI: "https://example.com/back.jpg"}},
 		}},
 	}
 
@@ -79,6 +80,8 @@ func TestPostgresRepo_Create(t *testing.T) {
 	assert.Equal(t, 2, found.Cards[0].Quantity)
 	assert.Equal(t, "{U}", found.Cards[0].ManaCost)
 	assert.Equal(t, deck.CommanderImageURI, found.CommanderImageURI)
+	require.Len(t, found.Cards[0].CardFaces, 2)
+	assert.Equal(t, "https://example.com/back.jpg", found.Cards[0].CardFaces[1].ImageURI)
 }
 
 func TestPostgresRepo_GetAll(t *testing.T) {
@@ -174,4 +177,28 @@ func TestPostgresRepo_SharedCardRelationshipAndCascade(t *testing.T) {
 	require.NoError(t, postgres.db.QueryRow(`SELECT COUNT(*) FROM cards WHERE oracle_id=$1`, card.OracleID).Scan(&cardCount))
 	assert.Equal(t, 1, relationshipCount)
 	assert.Equal(t, 1, cardCount)
+}
+
+func TestPostgresRepo_PatchCardsIsTransactionalAndIdempotent(t *testing.T) {
+	repo := setupPostgresRepo(t)
+	existing := deckEntity.Card{OracleID: "oracle-existing", Name: "Existing", Quantity: 1, ImageURI: "https://example.com/existing.jpg"}
+	d := &deckEntity.Deck{Name: "Deck", Color: "U", Format: "commander", Commander: "Thassa", OwnerID: 1, Cards: []deckEntity.Card{existing}}
+	require.NoError(t, repo.Create(d))
+
+	invalid := deckEntity.Card{Name: "Missing Oracle ID", Quantity: 1}
+	err := repo.PatchCards(d.ID, []deckEntity.Card{invalid}, []string{existing.OracleID})
+	require.Error(t, err)
+	unchanged, err := repo.GetByID(d.ID)
+	require.NoError(t, err)
+	require.Len(t, unchanged.Cards, 1)
+	assert.Equal(t, existing.OracleID, unchanged.Cards[0].OracleID)
+
+	replacement := deckEntity.Card{OracleID: "oracle-new", Name: "New", Quantity: 2, ImageURI: "https://example.com/new.jpg"}
+	require.NoError(t, repo.PatchCards(d.ID, []deckEntity.Card{replacement}, []string{existing.OracleID}))
+	require.NoError(t, repo.PatchCards(d.ID, []deckEntity.Card{replacement}, nil))
+	updated, err := repo.GetByID(d.ID)
+	require.NoError(t, err)
+	require.Len(t, updated.Cards, 1)
+	assert.Equal(t, replacement.OracleID, updated.Cards[0].OracleID)
+	assert.Equal(t, 2, updated.Cards[0].Quantity)
 }

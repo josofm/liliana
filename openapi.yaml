@@ -1,7 +1,7 @@
 openapi: 3.1.0
 info:
   title: Liliana API
-  version: 1.3.0
+  version: 1.7.0
   description: |
     API para autenticação, gerenciamento de usuários e gerenciamento de decks
     de Magic: The Gathering. As rotas protegidas exigem um access token JWT.
@@ -230,6 +230,10 @@ paths:
         Cria um deck para o usuário identificado pelo access token. O cliente não
         envia `owner_id`; esse valor é derivado da claim `user_id` do JWT.
 
+        `Idempotency-Key` deve ser um UUID novo para cada intenção de criação e
+        deve ser reutilizado nos retries da mesma operação. Uma repetição retorna
+        o deck da primeira chamada sem importar ou inserir novamente.
+
         Na criação manual de um deck commander, `name`, `format` e `commander`
         são obrigatórios. O comandante é procurado pelo nome exato no Scryfall,
         sua elegibilidade é validada e a identidade de cor do deck é derivada
@@ -248,7 +252,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: "#/components/schemas/DeckRequest"
+              $ref: "#/components/schemas/DeckMetadataRequest"
             examples:
               commanderSemCartas:
                 summary: Commander manual sem outras cartas
@@ -374,6 +378,53 @@ paths:
         "401":
           $ref: "#/components/responses/Unauthorized"
 
+  /decks/cards/search:
+    get:
+      tags: [Decks]
+      summary: Busca cartas para adicionar a um deck
+      description: |
+        Consulta todas as cartas no Scryfall, sem restringir os resultados a
+        comandantes. Retorna Oracle ID, dados visuais e faces da carta quando
+        disponíveis. A consulta deve possuir ao menos dois caracteres.
+      operationId: searchCards
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: Idempotency-Key
+          in: header
+          required: true
+          description: UUID estável entre tentativas da mesma criação
+          schema:
+            type: string
+            format: uuid
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+          example: sol ring
+      responses:
+        "200":
+          description: Cartas encontradas
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: "#/components/schemas/Card"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "502":
+          description: Não foi possível consultar o Scryfall
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+
   /decks/commanders:
     get:
       tags: [Decks]
@@ -447,6 +498,50 @@ paths:
           $ref: "#/components/responses/Unauthorized"
         "404":
           $ref: "#/components/responses/NotFound"
+    patch:
+      tags: [Decks]
+      summary: Altera cartas específicas do deck
+      description: |
+        Operação incremental e transacional. `upsert` define a quantidade final
+        das cartas informadas, tornando tentativas repetidas idempotentes.
+        `remove` recebe Oracle IDs. Todas as cartas de `upsert` são validadas e
+        enriquecidas antes de qualquer escrita; uma falha não altera o deck.
+      operationId: patchDeckCards
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/DeckCardsPatchRequest"
+            example:
+              upsert:
+                - name: Sol Ring
+                  quantity: 1
+              remove:
+                - 7a8a2d6f-8e24-4d87-8f42-42d4d7e535f5
+      responses:
+        "200":
+          description: Deck completo após as alterações
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Deck"
+        "400":
+          $ref: "#/components/responses/BadRequest"
+        "401":
+          $ref: "#/components/responses/Unauthorized"
+        "403":
+          description: O deck não pertence ao usuário autenticado
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Error"
+        "404":
+          $ref: "#/components/responses/NotFound"
+        "422":
+          $ref: "#/components/responses/UnprocessableEntity"
 
 components:
   securitySchemes:
@@ -646,6 +741,68 @@ components:
             1 Sol Ring
             2 Island
 
+    DeckMetadataRequest:
+      type: object
+      additionalProperties: false
+      required: [name, format]
+      allOf:
+        - if:
+            properties:
+              format:
+                const: commander
+            required: [format]
+          then:
+            required: [commander]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 100
+        color:
+          $ref: "#/components/schemas/DeckColor"
+        format:
+          $ref: "#/components/schemas/DeckFormat"
+        commander:
+          type: string
+          minLength: 1
+          maxLength: 100
+        source_link:
+          oneOf:
+            - const: ""
+            - type: string
+              format: uri
+
+    DeckCardUpsertRequest:
+      type: object
+      additionalProperties: false
+      required: [name, quantity]
+      properties:
+        name:
+          type: string
+          minLength: 1
+        quantity:
+          type: integer
+          minimum: 1
+
+    DeckCardsPatchRequest:
+      type: object
+      additionalProperties: false
+      properties:
+        upsert:
+          type: array
+          default: []
+          items:
+            $ref: "#/components/schemas/DeckCardUpsertRequest"
+        remove:
+          type: array
+          default: []
+          items:
+            type: string
+            description: Oracle ID da carta
+      anyOf:
+        - required: [upsert]
+        - required: [remove]
+
     Deck:
       type: object
       required: [id, name, color, format, commander, commander_image_uri, owner_id, source_link, cards]
@@ -711,6 +868,27 @@ components:
           items:
             type: string
             enum: [W, U, B, R, G]
+        image_uri:
+          type: string
+          format: uri
+        card_faces:
+          type: array
+          description: Faces da carta na ordem fornecida pelo Scryfall; presente em cartas multiface
+          items:
+            $ref: "#/components/schemas/CardFace"
+
+    CardFace:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+        mana_cost:
+          type: string
+        type_line:
+          type: string
+        oracle_text:
+          type: string
         image_uri:
           type: string
           format: uri

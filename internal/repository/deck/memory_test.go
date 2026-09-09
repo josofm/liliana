@@ -5,6 +5,7 @@ import (
 
 	deckEntity "github.com/josofm/liliana/internal/entity/deck"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestNewInMemoryRepo(t *testing.T) {
@@ -27,6 +28,23 @@ func TestInMemoryRepo_Create(t *testing.T) {
 	err := repo.Create(deck)
 	assert.NoError(t, err)
 	assert.Equal(t, int64(1), deck.ID)
+}
+
+func TestInMemoryRepo_CreateIsIdempotentPerOwnerAndKey(t *testing.T) {
+	repo := NewInMemoryRepo()
+	key := "4f4f60d0-59e4-4f3c-90b2-47e6d2bd8938"
+	first := &deckEntity.Deck{Name: "First", OwnerID: 1, IdempotencyKey: key}
+	require.NoError(t, repo.Create(first))
+
+	duplicate := &deckEntity.Deck{Name: "Duplicate", OwnerID: 1, IdempotencyKey: key}
+	require.Error(t, repo.Create(duplicate))
+	stored, err := repo.GetByIdempotencyKey(1, key)
+	require.NoError(t, err)
+	assert.Equal(t, first.ID, stored.ID)
+	assert.Equal(t, "First", stored.Name)
+
+	otherOwner := &deckEntity.Deck{Name: "Other owner", OwnerID: 2, IdempotencyKey: key}
+	require.NoError(t, repo.Create(otherOwner))
 }
 
 func TestInMemoryRepo_GetAll(t *testing.T) {

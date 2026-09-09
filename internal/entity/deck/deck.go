@@ -10,15 +10,25 @@ type Deck struct {
 	CommanderImageURI string `json:"commander_image_uri" validate:"omitempty,url"`
 	OwnerID           int64  `json:"owner_id" validate:"required,gt=0"`
 	SourceLink        string `json:"source_link" validate:"omitempty,url"` // ex: https://archidekt.com/decks/123456
+	IdempotencyKey    string `json:"-"`
 	Cards             []Card `json:"cards"`
 }
 
 type Card struct {
-	OracleID      string   `json:"oracle_id"`
-	Name          string   `json:"name"`
-	Quantity      int      `json:"quantity"`
-	ManaCost      string   `json:"mana_cost,omitempty"`
-	TypeLine      string   `json:"type_line,omitempty"`
-	ColorIdentity []string `json:"color_identity,omitempty"`
-	ImageURI      string   `json:"image_uri,omitempty"`
+	OracleID      string     `json:"oracle_id"`
+	Name          string     `json:"name"`
+	Quantity      int        `json:"quantity"`
+	ManaCost      string     `json:"mana_cost,omitempty"`
+	TypeLine      string     `json:"type_line,omitempty"`
+	ColorIdentity []string   `json:"color_identity,omitempty"`
+	ImageURI      string     `json:"image_uri,omitempty"`
+	CardFaces     []CardFace `json:"card_faces,omitempty"`
+}
+
+type CardFace struct {
+	Name       string `json:"name"`
+	ManaCost   string `json:"mana_cost,omitempty"`
+	TypeLine   string `json:"type_line,omitempty"`
+	OracleText string `json:"oracle_text,omitempty"`
+	ImageURI   string `json:"image_uri,omitempty"`
 }
