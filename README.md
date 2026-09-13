@@ -1,6 +1,11 @@
 # liliana
 Gideon died for her to live
 
+O ambiente Docker Compose usa PostgreSQL 18 (`postgres:18-alpine`). O banco de
+desenvolvimento/testes usa `tmpfs` em `/var/lib/postgresql`, compatível com o
+`PGDATA` padrão `/var/lib/postgresql/18/docker` da imagem. Os dados são temporários
+e não persistem quando o container do banco é parado.
+
 ## Grupos — primeiro incremento
 
 Jogadores são os usuários existentes (`users`); `player_id` referencia `users.id`.
