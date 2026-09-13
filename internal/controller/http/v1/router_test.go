@@ -16,6 +16,7 @@ import (
 	authEntity "github.com/josofm/liliana/internal/entity/auth"
 	userEntity "github.com/josofm/liliana/internal/entity/user"
 	deckRepo "github.com/josofm/liliana/internal/repository/deck"
+	groupRepo "github.com/josofm/liliana/internal/repository/group"
 	userRepo "github.com/josofm/liliana/internal/repository/user"
 	"github.com/josofm/liliana/internal/service/auth"
 	"github.com/josofm/liliana/pkg/logger"
@@ -40,7 +41,7 @@ func setupTestRouterV1() *gin.Engine {
 		},
 	}
 
-	v1.NewRouter(router, l, userRepo, deckRepo, cfg)
+	v1.NewRouter(router, l, userRepo, deckRepo, groupRepo.NewInMemoryRepo(), cfg)
 
 	// Criar usuário de teste para autenticação
 	testUser := &userEntity.User{

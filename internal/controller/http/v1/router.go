@@ -7,9 +7,11 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/josofm/liliana/config"
 	deckRepo "github.com/josofm/liliana/internal/repository/deck"
+	groupRepo "github.com/josofm/liliana/internal/repository/group"
 	userRepo "github.com/josofm/liliana/internal/repository/user"
 	"github.com/josofm/liliana/internal/service/auth"
 	deckService "github.com/josofm/liliana/internal/service/deck"
+	groupService "github.com/josofm/liliana/internal/service/group"
 	userService "github.com/josofm/liliana/internal/service/user"
 	"github.com/josofm/liliana/internal/validator"
 	"github.com/josofm/liliana/pkg/logger"
@@ -21,7 +23,7 @@ type RouterGroup interface {
 	Use(middleware ...gin.HandlerFunc) gin.IRoutes
 }
 
-func NewRouter(handler *gin.Engine, l logger.Interface, userRepo userRepo.Repository, deckRepo deckRepo.Repository, cfg *config.Config) {
+func NewRouter(handler *gin.Engine, l logger.Interface, userRepo userRepo.Repository, deckRepo deckRepo.Repository, groupRepo groupRepo.Repository, cfg *config.Config) {
 	// Options
 	handler.Use(gin.Logger())
 	handler.Use(gin.Recovery())
@@ -66,6 +68,7 @@ func NewRouter(handler *gin.Engine, l logger.Interface, userRepo userRepo.Reposi
 
 		// Deck management (protegido)
 		setupDeckRoutes(protected, deckRepo)
+		setupGroupRoutes(protected, groupService.NewService(groupRepo, userRepo))
 	}
 }
 

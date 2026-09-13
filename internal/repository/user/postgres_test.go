@@ -43,7 +43,7 @@ func setupPostgresRepo(t *testing.T) Repository {
 func truncatePostgresUsers(t *testing.T, db *sql.DB) {
 	t.Helper()
 
-	_, err := db.Exec(`TRUNCATE TABLE users RESTART IDENTITY`)
+	_, err := db.Exec(`TRUNCATE TABLE group_members, groups, users RESTART IDENTITY`)
 	require.NoError(t, err)
 }
 
