@@ -13,6 +13,7 @@ import (
 	v1 "github.com/josofm/liliana/internal/controller/http/v1"
 	"github.com/josofm/liliana/internal/migration"
 	deckRepo "github.com/josofm/liliana/internal/repository/deck"
+	groupRepo "github.com/josofm/liliana/internal/repository/group"
 	userRepo "github.com/josofm/liliana/internal/repository/user"
 	"github.com/josofm/liliana/pkg/httpserver"
 	"github.com/josofm/liliana/pkg/logger"
@@ -38,7 +39,7 @@ func Run(cfg *config.Config) {
 	deckRepo := deckRepo.NewPostgresRepo(db)
 
 	// Passar a configuração para o router
-	v1.NewRouter(handler, l, userRepo, deckRepo, cfg)
+	v1.NewRouter(handler, l, userRepo, deckRepo, groupRepo.NewPostgresRepo(db), cfg)
 
 	httpServer := httpserver.New(handler, cfg.HTTP.Port)
 

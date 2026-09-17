@@ -36,13 +36,13 @@ services:
       - tools
 
   postgres:
-    image: postgres:16-alpine
+    image: postgres:18-alpine
     environment:
       POSTGRES_USER: liliana
       POSTGRES_PASSWORD: liliana
       POSTGRES_DB: liliana_test
     tmpfs:
-      - /var/lib/postgresql/data
+      - /var/lib/postgresql
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U liliana -d liliana_test"]
       interval: 5s
