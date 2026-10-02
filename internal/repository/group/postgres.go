@@ -85,10 +85,15 @@ func (r *postgresRepo) GetMembers(id int64) ([]entity.Member, error) {
 	return result, rows.Err()
 }
 func (r *postgresRepo) AddMember(id, playerID int64) error {
-	if _, err := r.GetByID(id); err != nil {
+	tx, err := r.db.Begin()
+	if err != nil {
 		return err
 	}
-	result, err := r.db.Exec(`INSERT INTO group_members (group_id,player_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, id, playerID)
+	defer tx.Rollback()
+	if err := lockGroup(tx, id); err != nil {
+		return err
+	}
+	result, err := tx.Exec(`INSERT INTO group_members (group_id,player_id) VALUES ($1,$2) ON CONFLICT DO NOTHING`, id, playerID)
 	if err != nil {
 		return err
 	}
@@ -99,7 +104,7 @@ func (r *postgresRepo) AddMember(id, playerID int64) error {
 	if n == 0 {
 		return ErrAlreadyMember
 	}
-	return nil
+	return tx.Commit()
 }
 func (r *postgresRepo) RemoveMember(id, playerID int64) error {
 	g, err := r.GetByID(id)

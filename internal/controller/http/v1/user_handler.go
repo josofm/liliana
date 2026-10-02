@@ -1,6 +1,7 @@
 package v1
 
 import (
+	"errors"
 	"net/http"
 	"strconv"
 
@@ -32,6 +33,7 @@ func NewUserHandler(r *gin.Engine, repo userRepo.Repository) {
 	{
 		group.POST("/", h.create)
 		group.GET("/", h.getAll)
+		group.GET("/search", h.search)
 		group.GET("/:id", h.getByID)
 		group.PUT("/:id", h.update)
 		group.DELETE("/:id", h.delete)
@@ -40,6 +42,23 @@ func NewUserHandler(r *gin.Engine, repo userRepo.Repository) {
 		})
 
 	}
+}
+
+func (h *UserHandler) search(c *gin.Context) {
+	if id, ok := GetUserIDFromContext(c); !ok || id <= 0 {
+		c.JSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		return
+	}
+	users, err := h.service.Search(c.Query("q"))
+	if err != nil {
+		if errors.Is(err, userService.ErrInvalidSearch) {
+			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
+		} else {
+			c.JSON(http.StatusInternalServerError, gin.H{"error": "could not search users"})
+		}
+		return
+	}
+	c.JSON(http.StatusOK, users)
 }
 
 func (h *UserHandler) create(c *gin.Context) {

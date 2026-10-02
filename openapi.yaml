@@ -18,6 +18,172 @@ tags:
     description: Decks, importação de listas e busca de comandantes no Scryfall
 
 paths:
+  /users/search:
+    get:
+      tags: [Groups]
+      summary: Busca usuários cadastrados por e-mail
+      description: Busca parcial somente no e-mail, sem distinguir maiúsculas/minúsculas, com até 20 resultados ordenados por nome e ID. Inclui usuários já membros. Busca por nome não é suportada.
+      operationId: searchRegisteredUsers
+      security: [{ bearerAuth: [] }]
+      parameters:
+        - name: q
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 2
+            maxLength: 100
+      responses:
+        '200':
+          description: Usuários encontrados (somente id, name e email)
+          content:
+            application/json:
+              schema:
+                type: array
+                maxItems: 20
+                items:
+                  $ref: '#/components/schemas/UserSearchResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /groups/{id}/invitations:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    post:
+      tags: [Groups]
+      summary: Proprietário convida usuário cadastrado
+      operationId: createGroupInvitation
+      security: [{ bearerAuth: [] }]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [invited_player_id]
+              properties:
+                invited_player_id:
+                  type: integer
+                  format: int64
+                  minimum: 1
+      responses:
+        '201':
+          $ref: '#/components/responses/GroupInvitationResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/GroupForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/GroupInvitationConflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+    get:
+      tags: [Groups]
+      summary: Proprietário lista convites pendentes do grupo
+      operationId: listGroupInvitations
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/GroupInvitationList'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/GroupForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /group-invitations/:
+    get:
+      tags: [Groups]
+      summary: Lista convites recebidos e pendentes do usuário autenticado
+      operationId: listMyGroupInvitations
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/GroupInvitationList'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /group-invitations/{id}/accept:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    post:
+      tags: [Groups]
+      summary: Destinatário aceita convite e torna-se membro atomicamente
+      operationId: acceptGroupInvitation
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/GroupInvitationResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/GroupForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/GroupInvitationConflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /group-invitations/{id}/decline:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    post:
+      tags: [Groups]
+      summary: Destinatário recusa convite pendente
+      operationId: declineGroupInvitation
+      security: [{ bearerAuth: [] }]
+      responses:
+        '200':
+          $ref: '#/components/responses/GroupInvitationResult'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/GroupForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/GroupInvitationConflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
+  /group-invitations/{id}:
+    parameters:
+      - $ref: '#/components/parameters/ResourceId'
+    delete:
+      tags: [Groups]
+      summary: Proprietário cancela convite pendente (histórico preservado)
+      operationId: cancelGroupInvitation
+      security: [{ bearerAuth: [] }]
+      responses:
+        '204':
+          description: Convite cancelado
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/GroupForbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/GroupInvitationConflict'
+        '500':
+          $ref: '#/components/responses/InternalServerError'
   /groups/:
     post:
       tags: [Groups]
@@ -560,14 +726,6 @@ paths:
       security:
         - bearerAuth: []
       parameters:
-        - name: Idempotency-Key
-          in: header
-          required: true
-          description: UUID estável entre tentativas da mesma criação
-          schema:
-            type: string
-            format: uuid
-      parameters:
         - name: q
           in: query
           required: true
@@ -732,6 +890,26 @@ components:
         minimum: 1
 
   responses:
+    GroupInvitationResult:
+      description: Convite com status e datas definidos pelo servidor
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/GroupInvitation'
+    GroupInvitationList:
+      description: Convites pendentes por ID crescente; lista vazia quando não houver convites
+      content:
+        application/json:
+          schema:
+            type: array
+            items:
+              $ref: '#/components/schemas/GroupInvitation'
+    GroupInvitationConflict:
+      description: Jogador já é membro, convite pendente duplicado ou convite já encerrado
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
     GroupForbidden:
       description: Usuário externo ou operação exclusiva do proprietário
       content:
@@ -772,6 +950,47 @@ components:
             $ref: "#/components/schemas/Error"
 
   schemas:
+    UserSearchResult:
+      type: object
+      required: [id, name, email]
+      properties:
+        id:
+          type: integer
+          format: int64
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+    GroupInvitation:
+      type: object
+      required: [id, group_id, group_name, invited_player_id, invited_by_player_id, status, created_at, responded_at]
+      properties:
+        id:
+          type: integer
+          format: int64
+        group_id:
+          type: integer
+          format: int64
+        group_name:
+          type: string
+          description: Nome atual do grupo, disponível ao convidado antes do aceite
+        invited_player_id:
+          type: integer
+          format: int64
+        invited_by_player_id:
+          type: integer
+          format: int64
+        status:
+          type: string
+          enum: [pending, accepted, declined, cancelled]
+        created_at:
+          type: string
+          format: date-time
+        responded_at:
+          type: [string, 'null']
+          format: date-time
+          description: Preenchido no aceite, recusa ou cancelamento
     CreateGroupRequest:
       type: object
       required: [name]

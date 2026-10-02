@@ -43,7 +43,7 @@ func setupPostgresRepo(t *testing.T) Repository {
 func truncatePostgresUsers(t *testing.T, db *sql.DB) {
 	t.Helper()
 
-	_, err := db.Exec(`TRUNCATE TABLE group_members, groups, users RESTART IDENTITY`)
+	_, err := db.Exec(`TRUNCATE TABLE group_invitations, group_members, groups, users RESTART IDENTITY`)
 	require.NoError(t, err)
 }
 
@@ -51,6 +51,8 @@ func TestNewPostgresRepo(t *testing.T) {
 	repo := setupPostgresRepo(t)
 	assert.NotNil(t, repo)
 }
+
+func TestPostgresSearch(t *testing.T) { testSearch(t, setupPostgresRepo(t)) }
 
 func TestPostgresRepo_Create(t *testing.T) {
 	repo := setupPostgresRepo(t)

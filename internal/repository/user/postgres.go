@@ -64,7 +64,7 @@ func (r *postgresRepo) GetByID(id int64) (*userEntity.User, error) {
 	u := &userEntity.User{}
 	err := r.db.QueryRow(query, id).Scan(&u.ID, &u.Name, &u.Email, &u.Password)
 	if errors.Is(err, sql.ErrNoRows) {
-		return nil, errors.New("user not found")
+		return nil, ErrNotFound
 	}
 	if err != nil {
 		return nil, err

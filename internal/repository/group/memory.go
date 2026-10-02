@@ -8,14 +8,16 @@ import (
 )
 
 type inMemoryRepo struct {
-	mu      sync.RWMutex
-	groups  map[int64]entity.Group
-	members map[int64]map[int64]entity.Member
-	nextID  int64
+	mu               sync.RWMutex
+	groups           map[int64]entity.Group
+	members          map[int64]map[int64]entity.Member
+	nextID           int64
+	invitations      map[int64]entity.Invitation
+	nextInvitationID int64
 }
 
 func NewInMemoryRepo() Repository {
-	return &inMemoryRepo{groups: make(map[int64]entity.Group), members: make(map[int64]map[int64]entity.Member), nextID: 1}
+	return &inMemoryRepo{groups: make(map[int64]entity.Group), members: make(map[int64]map[int64]entity.Member), nextID: 1, invitations: make(map[int64]entity.Invitation), nextInvitationID: 1}
 }
 
 func (r *inMemoryRepo) Create(g *entity.Group) error {

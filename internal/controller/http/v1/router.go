@@ -138,6 +138,7 @@ func setupUserRoutes(rg RouterGroup, userRepo userRepo.Repository) {
 	{
 		group.POST("/", h.create)
 		group.GET("/", h.getAll)
+		group.GET("/search", h.search)
 		group.GET("/:id", h.getByID)
 		group.PUT("/:id", h.update)
 		group.DELETE("/:id", h.delete)
