@@ -55,6 +55,10 @@ func (m *mockUserRepo) GetAll() ([]*userEntity.User, error) {
 	return result, nil
 }
 
+func (m *mockUserRepo) Search(string) ([]*userEntity.User, error) {
+	panic("Search is not used by auth")
+}
+
 func (m *mockUserRepo) Update(id int64, u *userEntity.User) error {
 	if _, exists := m.users[id]; !exists {
 		return errors.New("user not found")

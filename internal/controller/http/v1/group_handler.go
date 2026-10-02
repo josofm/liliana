@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/gin-gonic/gin"
 	repository "github.com/josofm/liliana/internal/repository/group"
+	userRepo "github.com/josofm/liliana/internal/repository/user"
 	service "github.com/josofm/liliana/internal/service/group"
 	"net/http"
 	"strconv"
@@ -26,21 +27,33 @@ func setupGroupRoutes(rg RouterGroup, s *service.Service) {
 	g.PATCH("/:id", h.update)
 	g.GET("/:id/members", h.members)
 	g.DELETE("/:id/members/:playerID", h.removeMember)
+	g.POST("/:id/invitations", h.createInvitation)
+	g.GET("/:id/invitations", h.groupInvitations)
+	invitations := rg.Group("/group-invitations")
+	invitations.Use(func(c *gin.Context) {
+		if id, ok := GetUserIDFromContext(c); !ok || id <= 0 {
+			c.AbortWithStatusJSON(http.StatusUnauthorized, gin.H{"error": "user not authenticated"})
+		}
+	})
+	invitations.GET("/", h.playerInvitations)
+	invitations.POST("/:id/accept", h.acceptInvitation)
+	invitations.POST("/:id/decline", h.declineInvitation)
+	invitations.DELETE("/:id", h.cancelInvitation)
 }
 func groupError(c *gin.Context, err error) {
 	status := http.StatusInternalServerError
 	message := "could not process group operation"
 	switch {
-	case errors.Is(err, repository.ErrNotFound), errors.Is(err, repository.ErrMemberNotFound):
+	case errors.Is(err, repository.ErrNotFound), errors.Is(err, repository.ErrMemberNotFound), errors.Is(err, repository.ErrInvitationNotFound), errors.Is(err, userRepo.ErrNotFound):
 		status = http.StatusNotFound
 		message = err.Error()
 	case errors.Is(err, service.ErrForbidden):
 		status = http.StatusForbidden
 		message = err.Error()
-	case errors.Is(err, service.ErrInvalidName):
+	case errors.Is(err, service.ErrInvalidName), errors.Is(err, service.ErrInvalidPlayerID):
 		status = http.StatusBadRequest
 		message = err.Error()
-	case errors.Is(err, repository.ErrOwnerCannotLeave), errors.Is(err, repository.ErrAlreadyMember):
+	case errors.Is(err, repository.ErrOwnerCannotLeave), errors.Is(err, repository.ErrAlreadyMember), errors.Is(err, repository.ErrInvitationPending), errors.Is(err, repository.ErrInvitationClosed):
 		status = http.StatusConflict
 		message = err.Error()
 	}

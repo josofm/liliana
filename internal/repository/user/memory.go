@@ -2,6 +2,8 @@ package user
 
 import (
 	"errors"
+	"sort"
+	"strings"
 	"sync"
 
 	"github.com/josofm/liliana/internal/entity/user"
@@ -44,7 +46,7 @@ func (r *inMemoryRepo) GetByID(id int64) (*user.User, error) {
 	defer r.mu.RUnlock()
 	u, ok := r.users[id]
 	if !ok {
-		return nil, errors.New("user not found")
+		return nil, ErrNotFound
 	}
 	return u, nil
 }
@@ -58,6 +60,29 @@ func (r *inMemoryRepo) GetByEmail(email string) (*user.User, error) {
 		}
 	}
 	return nil, errors.New("user not found")
+}
+
+func (r *inMemoryRepo) Search(query string) ([]*user.User, error) {
+	r.mu.RLock()
+	defer r.mu.RUnlock()
+	query = strings.ToLower(query)
+	result := make([]*user.User, 0)
+	for _, u := range r.users {
+		if strings.Contains(strings.ToLower(u.Email), query) {
+			result = append(result, &user.User{ID: u.ID, Name: u.Name, Email: u.Email})
+		}
+	}
+	sort.Slice(result, func(i, j int) bool {
+		a, b := strings.ToLower(result[i].Name), strings.ToLower(result[j].Name)
+		if a == b {
+			return result[i].ID < result[j].ID
+		}
+		return a < b
+	})
+	if len(result) > 20 {
+		result = result[:20]
+	}
+	return result, nil
 }
 
 func (r *inMemoryRepo) Update(id int64, u *user.User) error {

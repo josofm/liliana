@@ -1,9 +1,22 @@
 package user
 
 import (
+	"errors"
 	"github.com/josofm/liliana/internal/entity/user"
 	r "github.com/josofm/liliana/internal/repository/user"
+	"strings"
+	"unicode/utf8"
 )
+
+var ErrInvalidSearch = errors.New("query must contain between 2 and 100 characters")
+
+func (s *Service) Search(query string) ([]*user.User, error) {
+	query = strings.TrimSpace(query)
+	if n := utf8.RuneCountInString(query); n < 2 || n > 100 {
+		return nil, ErrInvalidSearch
+	}
+	return s.repo.Search(query)
+}
 
 type Service struct {
 	repo r.Repository
